@@ -1,11 +1,121 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+
+    <style type="text/css">
+        .messages {
+            height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+
     <title>Bots by UberSwe</title>
 </head>
 <body>
-You're now logged in :)
+<div class="alert alert-success" role="alert">
+    You're now logged in :)
+</div>
+
+<form>
+    <div class="form-group">
+        <label for="channel">Connect to a channel</label>
+        <input type="text" class="form-control" id="channel" name="channel" placeholder="Enter a channel name">
+    </div>
+    <button type="submit" class="btn btn-primary" id="connect">Connect</button>
+</form>
+
+<div id="messages" class="messages">
+    <div class="message">
+        Hello world
+    </div>
+</div>
+
+
+
+<!-- Optional JavaScript -->
+<!-- jQuery first, then Popper.js, then Bootstrap JS -->
+<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+<script>
+    const messages = document.getElementById('messages');
+
+    let ws = new WebSocket('wss://' + window.location.host + '/ws');
+    ws.addEventListener('message', function(e) {
+        let msg = JSON.parse(e.data);
+        if (msg.key === "message") {
+            messageReceive(msg.value);
+        } else if (msg.key === "notice") {
+            noticeReceive(msg.value);
+        } else if (msg.key === "channel") {
+            channelReceive(msg.value);
+        } else {
+            console.log(msg)
+        }
+    });
+
+    ws.addEventListener('open', function (e) {
+        ws.send(JSON.stringify({key:"init", value:"hello"}));
+        ws.send(JSON.stringify({key:"auth", value:"{{.AuthToken}}"}));
+    });
+
+    ws.addEventListener('close', function (e) {
+        console.log("socket closed")
+    });
+
+    document.getElementById("connect").addEventListener('click', function(e){
+        e.preventDefault();
+        ws.send(JSON.stringify({key:"connect", value:document.getElementById("channel").value}));
+    });
+
+    function appendMessage(m, c) {
+        var message = document.createElement('div');
+        message.className = c;
+        message.innerHTML = m;
+        messages.appendChild(message);
+    }
+
+    function receiveMessage(message, className) {
+        // Prior to getting your messages.
+        let shouldScroll = messages.scrollTop + messages.clientHeight === messages.scrollHeight;
+        /*
+         * Get your messages, we'll just simulate it by appending a new one syncronously.
+         */
+        appendMessage(message, className);
+        // After getting your messages.
+        if (!shouldScroll) {
+            scrollToBottom();
+        }
+    }
+
+    function messageReceive(message) {
+        receiveMessage(message, 'message')
+    }
+
+    function noticeReceive(message) {
+        receiveMessage(message, 'notice')
+    }
+
+    function channelReceive(message) {
+        receiveMessage("Connected to channel " + message, 'channel')
+    }
+
+    function scrollToBottom() {
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    scrollToBottom();
+
+</script>
+
 
 </body>
 </html>
