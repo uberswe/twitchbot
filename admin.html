@@ -8,79 +8,160 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
     <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+          integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
 
     <style type="text/css">
         .messages {
-            height: 200px;
+            height: 350px;
             overflow-y: auto;
+            border-radius: 4px;
+            border-style: solid;
+            border-color: lightblue;
+            padding: 3px;
+        }
+        .cmd {
+            border-radius: 4px;
+            border-style: solid;
+            border-color: lightblue;
+            padding: 3px;
+            margin-top: 5px;
         }
     </style>
 
     <title>Bots by UberSwe</title>
 </head>
 <body>
-<div class="alert alert-success" role="alert">
-    You're now logged in :)
-</div>
+<div class="container">
 
-<form>
-    <div class="form-group">
-        <label for="channel">Connect to a channel</label>
-        <input type="text" class="form-control" id="channel" name="channel" placeholder="Enter a channel name">
+    <div class="alert alert-success" role="alert">
+        You're now logged in, connect your bot to one or more channels and add any commands custom commands.
     </div>
-    <button type="submit" class="btn btn-primary" id="connect">Connect</button>
-</form>
 
-<div id="messages" class="messages">
-    <div class="message">
-        Hello world
+    <div class="row">
+        <div class="col-sm">
+            <form>
+                <div class="form-group">
+                    <label for="channel">Connect to a channel</label>
+                    <input type="text" class="form-control" id="channel" name="channel"
+                           placeholder="Enter a channel name">
+                </div>
+                <button type="submit" class="btn btn-primary" id="connect">Connect</button>
+                <button type="submit" class="btn btn-danger" id="disconnect" disabled>Disconnect</button>
+            </form>
+        </div>
+        <div class="col-sm">
+
+            <div id="messages" class="messages">
+                <div class="message">
+                    Hello world
+                </div>
+            </div>
+        </div>
     </div>
+    <div class="row">
+        <div class="col-sm">
+            <h2>Variables</h2>
+            <p>$user - If your command specified a user such as <b>@uberswe</b> this will be the value otherwise it falls back to anyone who raided in the last 5 minutes.</p>
+        </div>
+        <div class="col-sm">
+            <h2>Commands</h2>
+            <form>
+                <div class="form-group">
+                    <label for="command">Create a command</label>
+                    <input type="text" class="form-control" id="command" name="command"
+                           placeholder="!shoutout">
+                    <label for="commandtext">Message text</label>
+                    <input type="text" class="form-control" id="commandtext" name="commandtext"
+                           placeholder="Check out and follow @$user! https://twitch.tv/$user">
+                </div>
+                <button type="submit" class="btn btn-primary" id="createcommand">Create</button>
+                <div class="commands" id="commands">
+                    <div class="cmd">
+                        <p><b>!shoutout</b></p>
+                        <p>Check out and follow @$user! https://twitch.tv/$user</p>
+                        <button type="submit" class="btn btn-danger" id="removecommand">Remove</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
 </div>
-
-
 
 <!-- Optional JavaScript -->
 <!-- jQuery first, then Popper.js, then Bootstrap JS -->
-<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
+        integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"
+        integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1"
+        crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"
+        integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM"
+        crossorigin="anonymous"></script>
 <script>
-    const messages = document.getElementById('messages');
+    const messages = document.getElementById ('messages');
 
-    let ws = new WebSocket('wss://' + window.location.host + '/ws');
-    ws.addEventListener('message', function(e) {
-        let msg = JSON.parse(e.data);
+    let ws = new WebSocket ('wss://' + window.location.host + '/ws');
+    ws.addEventListener ('message', function (e) {
+        let msg = JSON.parse (e.data);
         if (msg.key === "message") {
-            messageReceive(msg.value);
+            messageReceive (msg.value);
         } else if (msg.key === "notice") {
-            noticeReceive(msg.value);
+            noticeReceive (msg.value);
         } else if (msg.key === "channel") {
-            channelReceive(msg.value);
-        } else {
-            console.log(msg)
+            channelReceive (msg.value);
+        } else if (msg.key === "endchannel") {
+            channelEndReceive (msg.value);
+        } else if (msg.key === "addcommand") {
+            channelEndReceive (msg.value);
+        }  else if (msg.key === "removecommand") {
+            channelEndReceive (msg.value);
+        }  else {
+            console.log (msg)
         }
     });
 
-    ws.addEventListener('open', function (e) {
-        ws.send(JSON.stringify({key:"init", value:"hello"}));
-        ws.send(JSON.stringify({key:"auth", value:"{{.AuthToken}}"}));
+    ws.addEventListener ('open', function (e) {
+        ws.send (JSON.stringify ({key: "init", value: "hello"}));
+        ws.send (JSON.stringify ({key: "auth", value: "{{.AuthToken}}"}));
     });
 
-    ws.addEventListener('close', function (e) {
-        console.log("socket closed")
+    ws.addEventListener ('close', function (e) {
+        console.log ("socket closed")
     });
 
-    document.getElementById("connect").addEventListener('click', function(e){
-        e.preventDefault();
-        ws.send(JSON.stringify({key:"connect", value:document.getElementById("channel").value}));
+    document.getElementById ("connect").addEventListener ('click', function (e) {
+        e.preventDefault ();
+        document.getElementById ("connect").disabled = true;
+        document.getElementById ("disconnect").disabled = false;
+        ws.send (JSON.stringify ({key: "connect", value: document.getElementById("channel").value}));
+    });
+
+    document.getElementById ("disconnect").addEventListener ('click', function (e) {
+        e.preventDefault ();
+        document.getElementById ("connect").disabled = false;
+        document.getElementById ("disconnect").disabled = true;
+        ws.send (JSON.stringify ({key: "disconnect", value: document.getElementById("channel").value}));
+    });
+
+    document.getElementById ("createcommand").addEventListener ('click', function (e) {
+        e.preventDefault ();
+        ws.send (JSON.stringify ({key: "createcommand", value: {command: document.getElementById ("command").value, text: document.getElementById ("commandtext").value}}));
+    });
+
+    document.getElementById ("removecommand").addEventListener ('click', function (e) {
+        e.preventDefault ();
+        let cmd = e.currentTarget.parentNode.querySelector('p').innerText;
+        ws.send (JSON.stringify ({key: "removecommand", value: cmd}));
     });
 
     function appendMessage(m, c) {
-        var message = document.createElement('div');
+        var message = document.createElement ('div');
         message.className = c;
         message.innerHTML = m;
-        messages.appendChild(message);
+        messages.appendChild (message);
     }
 
     function receiveMessage(message, className) {
@@ -89,30 +170,35 @@
         /*
          * Get your messages, we'll just simulate it by appending a new one syncronously.
          */
-        appendMessage(message, className);
+        appendMessage (message, className);
         // After getting your messages.
         if (!shouldScroll) {
-            scrollToBottom();
+            scrollToBottom ();
         }
     }
 
     function messageReceive(message) {
-        receiveMessage(message, 'message')
+        var obj = JSON.parse(message);
+        receiveMessage ("<b>" + obj.User.Name + ":</b> " + obj.Message, 'message')
     }
 
     function noticeReceive(message) {
-        receiveMessage(message, 'notice')
+        receiveMessage (message, 'notice')
     }
 
     function channelReceive(message) {
-        receiveMessage("Connected to channel " + message, 'channel')
+        receiveMessage ("Connected to channel " + message, 'channel')
+    }
+
+    function channelEndReceive(message) {
+        receiveMessage ("Disconnected from channel " + message, 'channel')
     }
 
     function scrollToBottom() {
         messages.scrollTop = messages.scrollHeight;
     }
 
-    scrollToBottom();
+    scrollToBottom ();
 
 </script>
 
