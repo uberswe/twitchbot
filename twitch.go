@@ -1,23 +1,25 @@
-package main
+package botsbyuberswe
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/gempir/go-twitch-irc"
+	twitch "github.com/gempir/go-twitch-irc/v2"
 	"github.com/matryer/anno"
 	"log"
 )
 
-func connectToTwitch(accessToken string, channel string) {
+func connectToTwitch(accessToken string, channel string) *twitch.Client {
+	log.Println("creating twitch client")
 	client := twitch.NewClient("uberswe", fmt.Sprintf("oauth:%s", accessToken))
 
+	log.Println("configuring twitch client")
 	client.OnConnect(func() {
 		log.Println("Client connected")
 
-		initmsg := Message{
-			Key:   "channel",
-			Value: channel,
+		initmsg := WebsocketMessage{
+			Key:     "channel",
+			Channel: channel,
 		}
 
 		broadcast <- initmsg
@@ -41,16 +43,9 @@ func connectToTwitch(accessToken string, channel string) {
 			}
 		}
 
-		jsonString, err := json.Marshal(message)
-
-		if err != nil {
-			log.Println(err)
-			return
-		}
-
-		initmsg := Message{
-			Key:   "message",
-			Value: string(jsonString),
+		initmsg := WebsocketMessage{
+			Key:            "notice",
+			PrivateMessage: message,
 		}
 
 		broadcast <- initmsg
@@ -81,9 +76,9 @@ func connectToTwitch(accessToken string, channel string) {
 			return
 		}
 
-		initmsg := Message{
-			Key:   "notice",
-			Value: string(jsonString),
+		initmsg := WebsocketMessage{
+			Key:       "notice",
+			MsgParams: message.MsgParams,
 		}
 
 		broadcast <- initmsg
@@ -97,6 +92,8 @@ func connectToTwitch(accessToken string, channel string) {
 			log.Println(err)
 		}
 	}()
+
+	return client
 }
 
 func handleCommand(command string, message twitch.PrivateMessage) {

@@ -1,4 +1,4 @@
-package main
+package botsbyuberswe
 
 import (
 	"encoding/json"
@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 func routes() {
@@ -22,7 +23,7 @@ func routes() {
 }
 
 func index(w http.ResponseWriter, r *http.Request) {
-	tmpl := template.Must(template.ParseFiles("index.html"))
+	tmpl := template.Must(template.ParseFiles("assets/html/index.html"))
 	err := tmpl.Execute(w, nil)
 	if err != nil {
 		log.Println(err)
@@ -30,7 +31,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 }
 
 func callback(w http.ResponseWriter, r *http.Request) {
-	tmpl := template.Must(template.ParseFiles("callback.html"))
+	tmpl := template.Must(template.ParseFiles("assets/html/callback.html"))
 	// The following is an example of the callback request
 	// https://bot.uberswe.com/callback#access_token=fau80sjur5xhks8px0sq28jsy1hnak&scope=bits%3Aread+clips%3Aedit+user%3Aread%3Abroadcast+user%3Aread%3Aemail&token_type=bearer
 	err := tmpl.Execute(w, nil)
@@ -61,7 +62,7 @@ func admin(w http.ResponseWriter, r *http.Request) {
 		AuthToken: cookie.Value,
 	}
 
-	tmpl := template.Must(template.ParseFiles("admin.html"))
+	tmpl := template.Must(template.ParseFiles("assets/html/admin.html"))
 	err = tmpl.Execute(w, t)
 
 	if err != nil {
@@ -72,9 +73,12 @@ func admin(w http.ResponseWriter, r *http.Request) {
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
-	scopes := "bits:read clips:edit user:read:broadcast chat:read chat:edit channel:moderate whispers:read whispers:edit channel_editor"
+	scopes := "chat:read chat:edit"
 	clientID := "***REMOVED***"
-	redirectURL := "https://bot.uberswe.com/callback"
+	redirectURL := fmt.Sprintf("https://%s/callback", r.Host)
+	if strings.Contains(r.Host, "localhost") {
+		redirectURL = fmt.Sprintf("http://%s/callback", r.Host)
+	}
 	responseType := "token"
 	http.Redirect(w, r, fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?client_id=%s&redirect_uri=%s&response_type=%s&scope=%s", clientID, redirectURL, responseType, scopes), 302)
 	return

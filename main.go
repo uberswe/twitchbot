@@ -1,4 +1,4 @@
-package main
+package botsbyuberswe
 
 import (
 	"fmt"
@@ -12,16 +12,12 @@ import (
 var (
 	cookieName = "botbyuber"
 	clients    = make(map[*websocket.Conn]bool) // connected clients
-	broadcast  = make(chan Message)             // broadcast channel
+	broadcast  = make(chan WebsocketMessage)    // broadcast channel
 	upgrader   websocket.Upgrader
 	db         *leveldb.DB
 )
 
 // Define our message object
-type Message struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
 
 type Template struct {
 	AuthToken string
@@ -31,22 +27,20 @@ type HashRequest struct {
 	Hash string
 }
 
-type User struct {
-	AccessToken string
-	Scopes      []string
-	TokenType   string
-}
-
-func init() {
+func Init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-func main() {
+func Run() {
 
 	var err error
 	// Database handling
 
 	db, err = leveldb.OpenFile("uberswe.db", nil)
+
+	if err != nil {
+		panic(err)
+	}
 
 	defer db.Close()
 

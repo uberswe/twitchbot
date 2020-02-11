@@ -12,6 +12,29 @@
           integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
 
     <style type="text/css">
+        body {
+            background-color: #232946;
+            color: #B8C1EC;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #FFFFFE;
+        }
+        button {
+            color: #232946;
+            background-color: #EEBBC3;
+        }
+        input[type="text"], textarea {
+            background-color: #d4d8f0;
+            color: #232946;
+        }
+        .btn-primary {
+            color: #232946;
+            background-color: #B8C1EC;
+        }
+        .btn-danger {
+            color: #232946;
+            background-color: #EEBBC3;
+        }
         .messages {
             height: 350px;
             overflow-y: auto;
@@ -19,6 +42,8 @@
             border-style: solid;
             border-color: lightblue;
             padding: 3px;
+            background-color: #d4d8f0;
+            color: #232946;
         }
         .cmd {
             border-radius: 4px;
@@ -26,7 +51,10 @@
             border-color: lightblue;
             padding: 3px;
             margin-top: 5px;
+            background-color: #d4d8f0;
+            color: #232946;
         }
+        .top-buffer { margin-top:20px; }
     </style>
 
     <title>Bots by UberSwe</title>
@@ -35,7 +63,10 @@
 <div class="container">
 
     <div class="alert alert-success" role="alert">
-        You're now logged in, connect your bot to one or more channels and add any commands custom commands.
+        You're now logged in, connect your bot to a channel and add any custom commands. The bot will only send messages if it's a mod of a channel.
+    </div>
+    <div class="alert alert-warning" role="alert">
+        This bot is in Alpha, some things might not work as expected and the bot may stop working. Any changes you make on the page could be erased with breaking changes.
     </div>
 
     <div class="row">
@@ -47,22 +78,25 @@
                            placeholder="Enter a channel name">
                 </div>
                 <button type="submit" class="btn btn-primary" id="connect">Connect</button>
-                <button type="submit" class="btn btn-danger" id="disconnect" disabled>Disconnect</button>
+                <button type="submit" class="btn btn-danger" id="disconnect" hidden>Disconnect</button>
             </form>
         </div>
         <div class="col-sm">
 
             <div id="messages" class="messages">
                 <div class="message">
-                    Hello world
+                    Chat feed appears here when you connect to a channel.
                 </div>
             </div>
         </div>
     </div>
-    <div class="row">
+    <div class="row top-buffer">
         <div class="col-sm">
             <h2>Variables</h2>
-            <p>$user - If your command specified a user such as <b>@uberswe</b> this will be the value otherwise it falls back to anyone who raided in the last 5 minutes.</p>
+            <p><b>user</b> - If your command specified a user such as <b>@uberswe</b>.</p>
+            <p><b>lasthost</b> - This will be the user who last hosted your channel.</p>
+            <p><b>lastraid</b> - This will be the user who last raided your channel.</p>
+            <p><b>lasthostraid</b> - This will be the user who last hosted or raided your channel.</p>
         </div>
         <div class="col-sm">
             <h2>Commands</h2>
@@ -70,16 +104,16 @@
                 <div class="form-group">
                     <label for="command">Create a command</label>
                     <input type="text" class="form-control" id="command" name="command"
-                           placeholder="!shoutout">
+                           placeholder="!so {user}">
                     <label for="commandtext">Message text</label>
                     <input type="text" class="form-control" id="commandtext" name="commandtext"
-                           placeholder="Check out and follow @$user! https://twitch.tv/$user">
+                           placeholder="Check out and follow @{user}! https://twitch.tv/{user}">
                 </div>
                 <button type="submit" class="btn btn-primary" id="createcommand">Create</button>
                 <div class="commands" id="commands">
                     <div class="cmd">
-                        <p><b>!shoutout</b></p>
-                        <p>Check out and follow @$user! https://twitch.tv/$user</p>
+                        <p><b>!so {user}</b></p>
+                        <p>Check out and follow @{user}! https://twitch.tv/{user}</p>
                         <button type="submit" class="btn btn-danger" id="removecommand">Remove</button>
                     </div>
                 </div>
@@ -104,14 +138,20 @@
     const messages = document.getElementById ('messages');
 
     let ws = new WebSocket ('wss://' + window.location.host + '/ws');
+    if (location.protocol !== 'https:')
+    {
+        ws = new WebSocket ('ws://' + window.location.host + '/ws');
+    }
     ws.addEventListener ('message', function (e) {
         let msg = JSON.parse (e.data);
-        if (msg.key === "message") {
-            messageReceive (msg.value);
-        } else if (msg.key === "notice") {
-            noticeReceive (msg.value);
+        console.log(msg);
+        // {
+        //    "key":"notice",
+        //    "private_message":{"User":{"ID":"23198345","Name":"im_slaughter","DisplayName":"Im_Slaughter","Color":"#1E90FF","Badges":{"subscriber":3}},"Raw":"@badge-info=subscriber/5;badges=subscriber/3;color=#1E90FF;display-name=Im_Slaughter;emotes=;flags=;id=45b903a3-369d-4bcf-b4dd-6719596c4b9a;mod=0;room-id=158130480;subscriber=1;tmi-sent-ts=1577843394570;turbo=0;user-id=23198345;user-type= :im_slaughter!im_slaughter@im_slaughter.tmi.twitch.tv PRIVMSG #tweak :@mario_espo i swear this event is gonna make this game explode in popularity","Type":1,"RawType":"PRIVMSG","Tags":{"badge-info":"subscriber/5","badges":"subscriber/3","color":"#1E90FF","display-name":"Im_Slaughter","emotes":"","flags":"","id":"45b903a3-369d-4bcf-b4dd-6719596c4b9a","mod":"0","room-id":"158130480","subscriber":"1","tmi-sent-ts":"1577843394570","turbo":"0","user-id":"23198345","user-type":""},"Message":"@mario_espo i swear this event is gonna make this game explode in popularity","Channel":"tweak","RoomID":"158130480","ID":"45b903a3-369d-4bcf-b4dd-6719596c4b9a","Time":"2020-01-01T02:49:54.57+01:00","Emotes":null,"Bits":0,"Action":false}}
+        if (msg.key === "message" | msg.key === "notice") {
+            messageReceive (msg.private_message);
         } else if (msg.key === "channel") {
-            channelReceive (msg.value);
+            channelReceive (msg.channel);
         } else if (msg.key === "endchannel") {
             channelEndReceive (msg.value);
         } else if (msg.key === "addcommand") {
@@ -124,8 +164,7 @@
     });
 
     ws.addEventListener ('open', function (e) {
-        ws.send (JSON.stringify ({key: "init", value: "hello"}));
-        ws.send (JSON.stringify ({key: "auth", value: "{{.AuthToken}}"}));
+        console.log("socket open")
     });
 
     ws.addEventListener ('close', function (e) {
@@ -134,21 +173,27 @@
 
     document.getElementById ("connect").addEventListener ('click', function (e) {
         e.preventDefault ();
-        document.getElementById ("connect").disabled = true;
-        document.getElementById ("disconnect").disabled = false;
-        ws.send (JSON.stringify ({key: "connect", value: document.getElementById("channel").value}));
+        document.getElementById ("connect").hidden = true;
+        document.getElementById ("disconnect").hidden = false;
+        ws.send (JSON.stringify ({key: "connect", channel: document.getElementById("channel").value}));
     });
 
     document.getElementById ("disconnect").addEventListener ('click', function (e) {
         e.preventDefault ();
-        document.getElementById ("connect").disabled = false;
-        document.getElementById ("disconnect").disabled = true;
-        ws.send (JSON.stringify ({key: "disconnect", value: document.getElementById("channel").value}));
+        document.getElementById ("connect").hidden = false;
+        document.getElementById ("disconnect").hidden = true;
+        ws.send (JSON.stringify ({key: "disconnect", channel: document.getElementById("channel").value}));
     });
 
     document.getElementById ("createcommand").addEventListener ('click', function (e) {
         e.preventDefault ();
-        ws.send (JSON.stringify ({key: "createcommand", value: {command: document.getElementById ("command").value, text: document.getElementById ("commandtext").value}}));
+        let jsonmsg = JSON.stringify ({
+            key: "createcommand",
+            command: document.getElementById ("command").value,
+            text: document.getElementById ("commandtext").value
+        })
+        console.log(jsonmsg)
+        ws.send (jsonmsg);
     });
 
     document.getElementById ("removecommand").addEventListener ('click', function (e) {
@@ -177,9 +222,12 @@
         }
     }
 
-    function messageReceive(message) {
-        var obj = JSON.parse(message);
-        receiveMessage ("<b>" + obj.User.Name + ":</b> " + obj.Message, 'message')
+    function messageReceive(obj) {
+        if (obj.User.Color !== "") {
+            receiveMessage ("<b><span style=\"color:" + obj.User.Color + "\">" + obj.User.DisplayName + ":</span></b> " + obj.Message, 'message')
+        } else {
+            receiveMessage ("<b>" + obj.User.DisplayName + ":</b> " + obj.Message, 'message')
+        }
     }
 
     function noticeReceive(message) {
