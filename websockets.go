@@ -10,24 +10,25 @@ import (
 )
 
 type User struct {
-	AccessToken string
-	Scopes      []string
-	TokenType   string
-	Channels    []Channel
-	Commands    []Command
+	AccessToken string    `json:"access_token,omitempty"`
+	Scopes      []string  `json:"scopes,omitempty"`
+	TokenType   string    `json:"token_type,omitempty"`
+	Channel     Channel   `json:"channel,omitempty"`
+	Commands    []Command `json:"commands,omitempty"`
+	State       State     `json:"state,omitempty"`
 }
 
 type Command struct {
-	Input  string
-	Output string
+	Input  string `json:"input,omitempty"`
+	Output string `json:"output,omitempty"`
 }
 
 type Channel struct {
-	Name     string
-	Client   *twitch.Client
-	IsMod    bool
-	LastHost string
-	LastRaid string
+	Name     string         `json:"name,omitempty"`
+	Client   *twitch.Client `json:"client,omitempty"`
+	IsMod    bool           `json:"is_mod,omitempty"`
+	LastHost string         `json:"last_host,omitempty"`
+	LastRaid string         `json:"last_raid,omitempty"`
 }
 
 type WebsocketMessage struct {
@@ -37,6 +38,11 @@ type WebsocketMessage struct {
 	Text           string                `json:"text,omitempty"`
 	MsgParams      map[string]string     `json:"msg_params,omitempty"`
 	PrivateMessage twitch.PrivateMessage `json:"private_message,omitempty"`
+	State          State                 `json:"state,omitempty"`
+}
+
+type State struct {
+	Commands []Command `json:"commands,omitempty"`
 }
 
 func initWebsockets() {
@@ -97,6 +103,13 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		} else {
 			authenticated = true
 			log.Println("Authenticated")
+			statemsg := WebsocketMessage{
+				Key:     "state",
+				Channel: user.Channel.Name,
+				State:   user.State,
+			}
+
+			broadcast <- statemsg
 		}
 	}
 
@@ -120,6 +133,16 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 				channel.Name = msg.Channel
 				// Client is returned but the state might not be connected
 				channel.Client = client
+
+				user.Channel = channel
+
+				b, err := json.Marshal(user)
+				if err != nil {
+					fmt.Printf("Error: %s", err)
+					return
+				}
+				db.Put([]byte(cookie.Value), b, nil)
+
 				fmt.Println("Connect started")
 			} else {
 				log.Println("user already connected or invalid channel name")
@@ -141,24 +164,22 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 }
 
 func (u User) isConnected(channel string) bool {
-	for _, ch := range u.Channels {
-		if ch.Name == channel {
-			return true
-		}
+	if u.Channel.Name == channel {
+		return true
 	}
+
 	return false
 }
 
 func (u User) disconnect(channel string) {
-	for _, ch := range u.Channels {
-		if ch.Name == channel {
-			err := ch.Client.Disconnect()
-			if err != nil {
-				log.Println(err)
-			}
-			return
+	if u.Channel.Name == channel {
+		err := u.Channel.Client.Disconnect()
+		if err != nil {
+			log.Println(err)
 		}
+		return
 	}
+
 }
 
 func (u User) createCommand(command Command) bool {
