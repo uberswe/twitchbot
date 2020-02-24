@@ -11,37 +11,31 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
           integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
 
-    <link rel="stylesheet" href="/assets/css/main.css">
+    <link rel="stylesheet" href="/assets/css/main.css?m={{.ModifiedHash}}">
 
-    <title>Bots by UberSwe</title>
+    <title>Bot by UberSwe</title>
 </head>
 <body>
 <div class="container">
-
-    <div class="alert alert-success" role="alert">
-        You're now logged in, connect your bot to a channel and add any custom commands. The bot will only send messages if it's a mod of a channel.
-    </div>
     <div class="alert alert-warning" role="alert">
-        This bot is in Alpha, some things might not work as expected and the bot may stop working. Any changes you make on the page could be erased with breaking changes.
+        This bot is in Alpha, some things might not work as expected and the bot may stop working. Any changes you make on the page could be lost as we make improvements and changes.
     </div>
 
     <div class="row">
         <div class="col-sm">
             <form>
                 <div class="form-group">
-                    <label for="channel">Connect to a channel</label>
-                    <input type="text" class="form-control" id="channel" name="channel"
-                           placeholder="Enter a channel name">
+                    <label for="botlink">Connect a custom Twitch account to use as your bot</label>
+                    <p>Currently your bot is <b>botbyuber</b> but you can connect your own account to be used as a bot using the link below. I recommend opening a separate browser or private window where you can login and connect with the bot Twitch account.</p>
+                    <input type="text" class="form-control" id="botlink" name="botlink" disabled>
                 </div>
-                <button type="submit" class="btn btn-primary" id="connect">Connect</button>
-                <button type="submit" class="btn btn-danger" id="disconnect" hidden>Disconnect</button>
             </form>
         </div>
         <div class="col-sm">
 
             <div id="messages" class="messages">
                 <div class="message">
-                    Chat feed appears here when you connect to a channel.
+                    Your chat feed will show here.
                 </div>
             </div>
         </div>
@@ -90,7 +84,7 @@
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"
         integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM"
         crossorigin="anonymous"></script>
-<script src="/assets/js/main.js"></script>
+<script src="/assets/js/main.js?m={{.ModifiedHash}}"></script>
 
 
 </body>

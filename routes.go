@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
 )
 
@@ -25,25 +28,58 @@ func routes() {
 	http.HandleFunc("/auth", auth)
 }
 
-func index(w http.ResponseWriter, r *http.Request) {
-	tmpl := template.Must(template.ParseFiles("assets/html/index.html"))
-	err := tmpl.Execute(w, nil)
+// getModHash returns a string based on when the file or any included files was last modified, currently just a nano timestamp
+func getModHash(file string) string {
+	info, err := os.Stat(file)
 	if err != nil {
 		log.Println(err)
+		return "-1"
 	}
+	modTime := info.ModTime()
+	files, err := ioutil.ReadDir("assets/css/")
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, f := range files {
+		if f.ModTime().After(modTime) {
+			return strconv.FormatInt(f.ModTime().UnixNano(), 10)
+		}
+	}
+	files, err = ioutil.ReadDir("assets/js/")
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, f := range files {
+		if f.ModTime().After(modTime) {
+			return strconv.FormatInt(f.ModTime().UnixNano(), 10)
+		}
+	}
+	return strconv.FormatInt(modTime.UnixNano(), 10)
+}
+
+func loadTemplateFile(file string, w http.ResponseWriter) {
+	tmpl := template.Must(template.ParseFiles(file))
+	err := tmpl.Execute(w, Template{
+		ModifiedHash: getModHash(file), // TODO make this a hash in the future
+	})
+	if err != nil {
+		log.Println(err)
+		return
+	}
+}
+
+func index(w http.ResponseWriter, r *http.Request) {
+	loadTemplateFile("assets/html/index.html", w)
 }
 
 func callback(w http.ResponseWriter, r *http.Request) {
-	tmpl := template.Must(template.ParseFiles("assets/html/callback.html"))
+	loadTemplateFile("assets/html/callback.html", w)
 	// The following is an example of the callback request
 	// https://bot.uberswe.com/callback#access_token=fau80sjur5xhks8px0sq28jsy1hnak&scope=bits%3Aread+clips%3Aedit+user%3Aread%3Abroadcast+user%3Aread%3Aemail&token_type=bearer
-	err := tmpl.Execute(w, nil)
-	if err != nil {
-		log.Println(err)
-	}
 }
 
 func admin(w http.ResponseWriter, r *http.Request) {
+	filename := "assets/html/admin.html"
 	cookie, err := r.Cookie(cookieName)
 	if err != nil {
 		log.Printf("Cant find cookie :/\r\n")
@@ -62,10 +98,11 @@ func admin(w http.ResponseWriter, r *http.Request) {
 	log.Println(fmt.Sprintf("oauth:%s", userObj.AccessToken))
 
 	t := Template{
-		AuthToken: cookie.Value,
+		AuthToken:    cookie.Value,
+		ModifiedHash: getModHash(filename),
 	}
 
-	tmpl := template.Must(template.ParseFiles("assets/html/admin.html"))
+	tmpl := template.Must(template.ParseFiles(filename))
 	err = tmpl.Execute(w, t)
 
 	if err != nil {

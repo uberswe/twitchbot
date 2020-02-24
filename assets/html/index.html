@@ -11,18 +11,18 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
           integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
 
-    <link rel="stylesheet" href="/assets/css/main.css">
+    <link rel="stylesheet" href="/assets/css/main.css?m={{.ModifiedHash}}">
 
-    <title>Bots by UberSwe</title>
+    <title>Bot by UberSwe</title>
 </head>
 <body>
 <div class="container">
 
     <div class="row">
-        <div class="col-sm">
+        <div class="col-sm col-top-margin">
             <form>
-                <p>Login to twitch with an account you would like to use as a bot on your channel. Then come here and click login to start your bot. I recommend logging into your bot Twitch account using a browser window in private mode or just using two browsers such as Firefox and Chrome.</p>
-                <button type="submit" class="btn btn-primary" id="login">Login</button>
+                <p>Login using your Twitch channel account so that the bot can read your chat. Your own bot account can be connected later.</p>
+                <button type="submit" class="btn btn-primary" id="login">Connect</button>
             </form>
         </div>
 
@@ -42,7 +42,7 @@
         integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM"
         crossorigin="anonymous"></script>
 
-<script src="/assets/js/login.js"></script>
+<script src="/assets/js/login.js?m={{.ModifiedHash}}"></script>
 
 
 </body>

@@ -34,20 +34,6 @@ ws.addEventListener ('close', function (e) {
     console.log ("socket closed")
 });
 
-document.getElementById ("connect").addEventListener ('click', function (e) {
-    e.preventDefault ();
-    document.getElementById ("connect").hidden = true;
-    document.getElementById ("disconnect").hidden = false;
-    ws.send (JSON.stringify ({key: "connect", channel: document.getElementById("channel").value}));
-});
-
-document.getElementById ("disconnect").addEventListener ('click', function (e) {
-    e.preventDefault ();
-    document.getElementById ("connect").hidden = false;
-    document.getElementById ("disconnect").hidden = true;
-    ws.send (JSON.stringify ({key: "disconnect", channel: document.getElementById("channel").value}));
-});
-
 document.getElementById ("createcommand").addEventListener ('click', function (e) {
     e.preventDefault ();
     let jsonmsg = JSON.stringify ({
@@ -91,10 +77,6 @@ function messageReceive(obj) {
     } else {
         receiveMessage ("<b>" + obj.User.DisplayName + ":</b> " + obj.Message, 'message')
     }
-}
-
-function noticeReceive(message) {
-    receiveMessage (message, 'notice')
 }
 
 function channelReceive(message) {
