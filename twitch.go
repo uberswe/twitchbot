@@ -6,8 +6,32 @@ import (
 	"fmt"
 	twitch "github.com/gempir/go-twitch-irc/v2"
 	"github.com/matryer/anno"
+	"github.com/nicklaw5/helix"
 	"log"
 )
+
+func getChannelName(accessToken string) string {
+	log.Println("creating twitch client")
+	client, err := helix.NewClient(&helix.Options{
+		ClientID:        clientID,
+		UserAccessToken: accessToken,
+	})
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+	userResponse, err := client.GetUsers(&helix.UsersParams{})
+
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+
+	for _, user := range userResponse.Data.Users {
+		return user.DisplayName
+	}
+	return ""
+}
 
 func connectToTwitch(accessToken string, channel string) *twitch.Client {
 	log.Println("creating twitch client")

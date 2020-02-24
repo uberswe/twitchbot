@@ -113,8 +113,7 @@ func admin(w http.ResponseWriter, r *http.Request) {
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
-	scopes := "chat:read chat:edit"
-	clientID := "***REMOVED***"
+	scopes := "chat:read user:read:broadcast bits:read channel:read:subscriptions analytics:read:games analytics:read:extensions"
 	redirectURL := fmt.Sprintf("https://%s/callback", r.Host)
 	if strings.Contains(r.Host, "localhost") {
 		redirectURL = fmt.Sprintf("http://%s/callback", r.Host)

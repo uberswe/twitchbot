@@ -76,6 +76,7 @@ func handleMessages() {
 func handleConnections(w http.ResponseWriter, r *http.Request) {
 	var user User
 	authenticated := false
+	//connecting := false
 
 	// Upgrade initial GET request to a websocket
 	ws, err := upgrader.Upgrade(w, r, nil)
@@ -113,6 +114,40 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if authenticated {
+		channelName := getChannelName(user.AccessToken)
+		if !user.isConnected(channelName) {
+			var channel Channel
+			log.Printf("Connect to channel %s: %s\n", user.AccessToken, channelName)
+			log.Println("connectToTwitch")
+			client := connectToTwitch(user.AccessToken, channelName)
+			channel.Name = channelName
+			// Client is returned but the state might not be connected
+			channel.Client = client
+
+			user.Channel = channel
+
+			b, err := json.Marshal(user)
+			if err != nil {
+				fmt.Printf("Error: %s", err)
+				return
+			}
+			db.Put([]byte(cookie.Value), b, nil)
+
+			fmt.Println("Connect started")
+		} else if user.isConnected(channelName) {
+			log.Println("user already connected")
+			initmsg := WebsocketMessage{
+				Key:     "channel",
+				Channel: channelName,
+			}
+
+			broadcast <- initmsg
+		} else {
+			log.Println("invalid channel name")
+		}
+	}
+
 	for {
 		var msg WebsocketMessage
 		// Read in a new message as JSON and map it to a Message object
@@ -124,41 +159,23 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		}
 		fmt.Printf("%s: %v\n", msg.Key, msg)
 		fmt.Printf("Authenticated: %t\n", authenticated)
-		if msg.Key == "connect" && authenticated {
-			if len(msg.Channel) > 1 && len(msg.Channel) < 70 && !user.isConnected(msg.Channel) {
-				var channel Channel
-				log.Printf("Connect to channel %s: %s\n", user.AccessToken, msg.Channel)
-				log.Println("connectToTwitch")
-				client := connectToTwitch(user.AccessToken, msg.Channel)
-				channel.Name = msg.Channel
-				// Client is returned but the state might not be connected
-				channel.Client = client
-
-				user.Channel = channel
-
-				b, err := json.Marshal(user)
-				if err != nil {
-					fmt.Printf("Error: %s", err)
-					return
+		// TODO connect if not connected
+		// TODO refresh tokens
+		if authenticated {
+			if msg.Key == "createcommand" {
+				// TODO create a command
+				log.Println(msg.Command, msg.Text)
+			} else if msg.Key == "removecommand" {
+				// TODO remove a command
+				log.Println(msg.Command, msg.Text)
+				for key, command := range user.State.Commands {
+					if command.Input == msg.Text {
+						user.State.Commands = deleteCommand(user.State.Commands, key)
+					}
 				}
-				db.Put([]byte(cookie.Value), b, nil)
-
-				fmt.Println("Connect started")
 			} else {
-				log.Println("user already connected or invalid channel name")
+				log.Printf("No matching command found: '%s'\n", msg.Key)
 			}
-		} else if msg.Key == "disconnect" && authenticated {
-			// TODO disconnect from the channel here
-			user.disconnect(msg.Channel)
-			log.Println(msg.Command, msg.Text)
-		} else if msg.Key == "createcommand" && authenticated {
-			// TODO create a command
-			log.Println(msg.Command, msg.Text)
-		} else if msg.Key == "removecommand" && authenticated {
-			// TODO remove a command
-			log.Println(msg.Command, msg.Text)
-		} else {
-			log.Printf("No matching command found: '%s'\n", msg.Key)
 		}
 	}
 }
@@ -200,4 +217,17 @@ func (u User) removeCommand(command Command) bool {
 		}
 	}
 	return false
+}
+
+func deleteCommand(arr []Command, index int) []Command {
+	if index < 0 || index >= len(arr) {
+		return arr
+	}
+
+	for i := index; i < len(arr)-1; i++ {
+		arr[i] = arr[i+1]
+
+	}
+
+	return arr[:len(arr)-1]
 }

@@ -48,7 +48,8 @@ document.getElementById ("createcommand").addEventListener ('click', function (e
 document.getElementById ("removecommand").addEventListener ('click', function (e) {
     e.preventDefault ();
     let cmd = e.currentTarget.parentNode.querySelector('p').innerText;
-    ws.send (JSON.stringify ({key: "removecommand", value: cmd}));
+    console.log({key: "removecommand", text: cmd});
+    ws.send (JSON.stringify ({key: "removecommand", text: cmd}));
 });
 
 function appendMessage(m, c) {
