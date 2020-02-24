@@ -8,6 +8,7 @@ require (
 	github.com/gorilla/websocket v1.4.1
 	github.com/matryer/anno v1.0.0
 	github.com/matryer/is v1.2.0 // indirect
+	github.com/nicklaw5/helix v0.5.7
 	github.com/spf13/cobra v0.0.5
 	github.com/syndtr/goleveldb v1.0.0
 )

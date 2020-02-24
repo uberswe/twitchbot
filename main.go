@@ -15,6 +15,7 @@ var (
 	broadcast  = make(chan WebsocketMessage)    // broadcast channel
 	upgrader   websocket.Upgrader
 	db         *leveldb.DB
+	clientID   = "3en0x0g6wt7xcm0ra8z0p4fvq5bc34"
 )
 
 // Define our message object
