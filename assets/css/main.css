@@ -2,25 +2,31 @@ body {
     background-color: #232946;
     color: #B8C1EC;
 }
+
 h1, h2, h3, h4, h5, h6 {
     color: #FFFFFE;
 }
+
 button {
     color: #232946;
     background-color: #EEBBC3;
 }
+
 input[type="text"], textarea {
     background-color: #d4d8f0;
     color: #232946;
 }
+
 .btn-primary {
     color: #232946;
     background-color: #B8C1EC;
 }
+
 .btn-danger {
     color: #232946;
     background-color: #EEBBC3;
 }
+
 .messages {
     height: 350px;
     overflow-y: auto;
@@ -31,6 +37,7 @@ input[type="text"], textarea {
     background-color: #d4d8f0;
     color: #232946;
 }
+
 .cmd {
     border-radius: 4px;
     border-style: solid;
@@ -40,4 +47,11 @@ input[type="text"], textarea {
     background-color: #d4d8f0;
     color: #232946;
 }
-.top-buffer { margin-top:20px; }
+
+.top-buffer {
+    margin-top: 20px;
+}
+
+.col-top-margin {
+    margin-top: 50px;
+}

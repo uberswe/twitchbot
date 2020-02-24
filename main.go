@@ -20,7 +20,8 @@ var (
 // Define our message object
 
 type Template struct {
-	AuthToken string
+	AuthToken    string
+	ModifiedHash string
 }
 
 type HashRequest struct {
