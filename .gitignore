@@ -1,1 +1,3 @@
 .idea
+/uberswe.db/
+*.log

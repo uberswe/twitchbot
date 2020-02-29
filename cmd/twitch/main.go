@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/markustenghamn/botsbyuberswe"
 	"github.com/spf13/cobra"
+	"log"
 	"os"
 )
 
@@ -37,7 +38,7 @@ func main() {
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		os.Exit(1)
 	}
 }

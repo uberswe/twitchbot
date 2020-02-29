@@ -2,20 +2,23 @@ package botsbyuberswe
 
 import (
 	"encoding/json"
-	"fmt"
 	twitch "github.com/gempir/go-twitch-irc/v2"
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
+	"time"
 )
 
 type User struct {
-	AccessToken string    `json:"access_token,omitempty"`
-	Scopes      []string  `json:"scopes,omitempty"`
-	TokenType   string    `json:"token_type,omitempty"`
-	Channel     Channel   `json:"channel,omitempty"`
-	Commands    []Command `json:"commands,omitempty"`
-	State       State     `json:"state,omitempty"`
+	AccessCode   string    `json:"access_code,omitempty"`
+	AccessToken  string    `json:"access_token,omitempty"`
+	RefreshToken string    `json:"refresh_token,omitempty"`
+	TokenExpiry  time.Time `json:"token_expiry,omitempty"`
+	Scopes       []string  `json:"scopes,omitempty"`
+	TokenType    string    `json:"token_type,omitempty"`
+	Channel      Channel   `json:"channel,omitempty"`
+	Commands     []Command `json:"commands,omitempty"`
+	State        State     `json:"state,omitempty"`
 }
 
 type Command struct {
@@ -129,12 +132,12 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 
 			b, err := json.Marshal(user)
 			if err != nil {
-				fmt.Printf("Error: %s", err)
+				log.Printf("Error: %s", err)
 				return
 			}
 			db.Put([]byte(cookie.Value), b, nil)
 
-			fmt.Println("Connect started")
+			log.Println("Connect started")
 		} else if user.isConnected(channelName) {
 			log.Println("user already connected")
 			initmsg := WebsocketMessage{
@@ -157,8 +160,8 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			delete(clients, ws)
 			break
 		}
-		fmt.Printf("%s: %v\n", msg.Key, msg)
-		fmt.Printf("Authenticated: %t\n", authenticated)
+		log.Printf("%s: %v\n", msg.Key, msg)
+		log.Printf("Authenticated: %t\n", authenticated)
 		// TODO connect if not connected
 		// TODO refresh tokens
 		if authenticated {
