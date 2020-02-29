@@ -3,14 +3,15 @@ package botsbyuberswe
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/nicklaw5/helix"
 	"html/template"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func routes() {
@@ -24,8 +25,6 @@ func routes() {
 	http.HandleFunc("/login", login)
 
 	http.HandleFunc("/", index)
-
-	http.HandleFunc("/auth", auth)
 }
 
 // getModHash returns a string based on when the file or any included files was last modified, currently just a nano timestamp
@@ -69,16 +68,91 @@ func loadTemplateFile(file string, w http.ResponseWriter) {
 }
 
 func index(w http.ResponseWriter, r *http.Request) {
+	redirectURL = fmt.Sprintf("https://%s/callback", r.Host)
+	if strings.Contains(r.Host, "localhost") {
+		redirectURL = fmt.Sprintf("http://%s/callback", r.Host)
+	}
 	loadTemplateFile("assets/html/index.html", w)
 }
 
 func callback(w http.ResponseWriter, r *http.Request) {
-	loadTemplateFile("assets/html/callback.html", w)
+	redirectURL = fmt.Sprintf("https://%s/callback", r.Host)
+	if strings.Contains(r.Host, "localhost") {
+		redirectURL = fmt.Sprintf("http://%s/callback", r.Host)
+	}
+
 	// The following is an example of the callback request
-	// https://bot.uberswe.com/callback#access_token=fau80sjur5xhks8px0sq28jsy1hnak&scope=bits%3Aread+clips%3Aedit+user%3Aread%3Abroadcast+user%3Aread%3Aemail&token_type=bearer
+	// http://localhost:8010/callback?code=1b4h2pcqfgpzu5r6z4we5st0qe7nri&scope=chat%3Aread+user%3Aread%3Abroadcast+bits%3Aread+channel%3Aread%3Asubscriptions+analytics%3Aread%3Agames+analytics%3Aread%3Aextensions&state=uberstate
+	if val, ok := r.URL.Query()["code"]; ok && len(val) > 0 {
+		log.Println(val)
+		client, err := helix.NewClient(&helix.Options{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectURI:  redirectURL,
+		})
+
+		if err != nil {
+			http.Error(w, "Unexpected response from Twitch, please try again!", 500)
+			return
+		}
+
+		resp, err := client.GetUserAccessToken(val[0])
+		if err != nil {
+			http.Error(w, "Unexpected response from Twitch, please try again!", 500)
+			return
+		}
+
+		log.Printf("%+v\n", resp)
+
+		key := RandString(155)
+
+		tokenExpiry := time.Now().Add(time.Duration(resp.Data.ExpiresIn) * time.Second)
+
+		log.Printf("Tokens should refresh at %s", tokenExpiry.String())
+
+		user := User{
+			AccessCode:   val[0],
+			AccessToken:  resp.Data.AccessToken,
+			RefreshToken: resp.Data.RefreshToken,
+			TokenExpiry:  tokenExpiry,
+			Scopes:       resp.Data.Scopes,
+			TokenType:    "code",
+		}
+
+		b, err := json.Marshal(user)
+		if err != nil {
+			log.Printf("Error: %s", err)
+			return
+		}
+
+		err = db.Put([]byte(key), b, nil)
+
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		cookie := http.Cookie{
+			Name:  cookieName,
+			Value: key, // TODO is this random key safe?
+		}
+
+		http.SetCookie(w, &cookie)
+		http.Redirect(w, r, "/admin", 302)
+
+		return
+	} else {
+		http.Error(w, "Unexpected response from Twitch, please try again!", 500)
+		return
+	}
 }
 
 func admin(w http.ResponseWriter, r *http.Request) {
+	redirectURL = fmt.Sprintf("https://%s/callback", r.Host)
+	if strings.Contains(r.Host, "localhost") {
+		redirectURL = fmt.Sprintf("http://%s/callback", r.Host)
+	}
+
 	filename := "assets/html/admin.html"
 	cookie, err := r.Cookie(cookieName)
 	if err != nil {
@@ -114,63 +188,13 @@ func admin(w http.ResponseWriter, r *http.Request) {
 
 func login(w http.ResponseWriter, r *http.Request) {
 	scopes := "chat:read user:read:broadcast bits:read channel:read:subscriptions analytics:read:games analytics:read:extensions"
-	redirectURL := fmt.Sprintf("https://%s/callback", r.Host)
+	redirectURL = fmt.Sprintf("https://%s/callback", r.Host)
 	if strings.Contains(r.Host, "localhost") {
 		redirectURL = fmt.Sprintf("http://%s/callback", r.Host)
 	}
-	responseType := "token"
-	http.Redirect(w, r, fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?client_id=%s&redirect_uri=%s&response_type=%s&scope=%s", clientID, redirectURL, responseType, scopes), 302)
+	responseType := "code"
+	// TODO set the state to a CSRF token and verify
+	http.Redirect(w, r, fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?client_id=%s&redirect_uri=%s&response_type=%s&scope=%s&force_verify=%s&state=%s", clientID, redirectURL, responseType, scopes, "true", "uberstate"), 302)
 	return
 
-}
-
-func auth(w http.ResponseWriter, r *http.Request) {
-	// Parse the URL and ensure there are no errors.
-
-	decoder := json.NewDecoder(r.Body)
-	var hr HashRequest
-	err := decoder.Decode(&hr)
-	if err != nil {
-		log.Println(err)
-	}
-
-	vals, err := url.ParseQuery(hr.Hash)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	key := RandString(155)
-
-	if vals["#access_token"] != nil {
-		user := User{
-			AccessToken: vals["#access_token"][0],
-			Scopes:      vals["scope"],
-			TokenType:   vals["token_type"][0],
-		}
-
-		b, err := json.Marshal(user)
-		if err != nil {
-			fmt.Printf("Error: %s", err)
-			return
-		}
-
-		err = db.Put([]byte(key), b, nil)
-
-		if err != nil {
-			log.Println(err)
-			return
-		}
-
-		cookie := http.Cookie{
-			Name:  cookieName,
-			Value: key,
-		}
-
-		http.SetCookie(w, &cookie)
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	w.WriteHeader(http.StatusBadRequest)
 }

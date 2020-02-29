@@ -17,13 +17,13 @@ func getChannelName(accessToken string) string {
 		UserAccessToken: accessToken,
 	})
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return ""
 	}
 	userResponse, err := client.GetUsers(&helix.UsersParams{})
 
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return ""
 	}
 
@@ -121,5 +121,5 @@ func connectToTwitch(accessToken string, channel string) *twitch.Client {
 }
 
 func handleCommand(command string, message twitch.PrivateMessage) {
-	fmt.Printf("Command detected: %s\n", command)
+	log.Printf("Command detected: %s\n", command)
 }
