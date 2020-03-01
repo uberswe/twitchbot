@@ -25,7 +25,6 @@ var (
 // Define our message object
 
 type Template struct {
-	AuthToken    string
 	ModifiedHash string
 }
 

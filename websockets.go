@@ -2,6 +2,7 @@ package botsbyuberswe
 
 import (
 	"encoding/json"
+	"fmt"
 	twitch "github.com/gempir/go-twitch-irc/v2"
 	"github.com/gorilla/websocket"
 	"log"
@@ -9,7 +10,14 @@ import (
 	"time"
 )
 
+type Cookie struct {
+	TwitchID string    `json:"twitch_id,omitempty"`
+	Expiry   time.Time `json:"expiry,omitempty"`
+}
+
 type User struct {
+	TwitchID     string    `json:"twitch_id,omitempty"`
+	Email        string    `json:"email,omitempty"`
 	AccessCode   string    `json:"access_code,omitempty"`
 	AccessToken  string    `json:"access_token,omitempty"`
 	RefreshToken string    `json:"refresh_token,omitempty"`
@@ -97,9 +105,18 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	} else {
 		log.Printf("cookie val: %s", cookie.Value)
 
-		data, err := db.Get([]byte(cookie.Value), nil)
+		data, err := db.Get([]byte(fmt.Sprintf("cookie:%s", cookie.Value)), nil)
 
-		err = json.Unmarshal(data, &user)
+		var cookieObj Cookie
+
+		err = json.Unmarshal(data, &cookieObj)
+		if err != nil {
+			log.Println(err)
+		}
+
+		data2, err := db.Get([]byte(fmt.Sprintf("user:%s", cookieObj.TwitchID)), nil)
+
+		err = json.Unmarshal(data2, &user)
 		if err != nil {
 			log.Println(err)
 			delete(clients, ws)

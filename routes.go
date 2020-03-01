@@ -85,6 +85,7 @@ func callback(w http.ResponseWriter, r *http.Request) {
 	// http://localhost:8010/callback?code=1b4h2pcqfgpzu5r6z4we5st0qe7nri&scope=chat%3Aread+user%3Aread%3Abroadcast+bits%3Aread+channel%3Aread%3Asubscriptions+analytics%3Aread%3Agames+analytics%3Aread%3Aextensions&state=uberstate
 	if val, ok := r.URL.Query()["code"]; ok && len(val) > 0 {
 		log.Println(val)
+		// TODO we can keep the client for the entire application?? No need to make a new one every time?
 		client, err := helix.NewClient(&helix.Options{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
@@ -110,13 +111,46 @@ func callback(w http.ResponseWriter, r *http.Request) {
 
 		log.Printf("Tokens should refresh at %s", tokenExpiry.String())
 
+		client.SetUserAccessToken(resp.Data.AccessToken)
+
+		userResponse, err := client.GetUsers(&helix.UsersParams{})
+
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		channelName := ""
+		twitchID := ""
+		email := ""
+		cookieExpiry := time.Now().AddDate(1, 0, 0)
+
+		for _, user := range userResponse.Data.Users {
+			log.Printf("%+v\n", user)
+			channelName = user.DisplayName
+			twitchID = user.ID
+			email = user.Email
+		}
+
+		cookieModel := Cookie{
+			TwitchID: twitchID,
+			Expiry:   cookieExpiry,
+		}
+
+		// TODO check if user already exists
+
 		user := User{
+			TwitchID:     twitchID,
+			Email:        email,
 			AccessCode:   val[0],
 			AccessToken:  resp.Data.AccessToken,
 			RefreshToken: resp.Data.RefreshToken,
 			TokenExpiry:  tokenExpiry,
 			Scopes:       resp.Data.Scopes,
 			TokenType:    "code",
+			Channel: Channel{
+				Name: channelName,
+			},
 		}
 
 		b, err := json.Marshal(user)
@@ -125,7 +159,22 @@ func callback(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = db.Put([]byte(key), b, nil)
+		// We store the user object with the twitchID for reference
+		err = db.Put([]byte(fmt.Sprintf("user:%s", twitchID)), b, nil)
+
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		c, err := json.Marshal(cookieModel)
+		if err != nil {
+			log.Printf("Error: %s", err)
+			return
+		}
+
+		// We then store the cookie which has a reference to the twitchID
+		err = db.Put([]byte(fmt.Sprintf("cookie:%s", key)), c, nil)
 
 		if err != nil {
 			log.Println(err)
@@ -133,8 +182,9 @@ func callback(w http.ResponseWriter, r *http.Request) {
 		}
 
 		cookie := http.Cookie{
-			Name:  cookieName,
-			Value: key, // TODO is this random key safe?
+			Name:    cookieName,
+			Value:   key, // TODO is this random key safe?
+			Expires: cookieExpiry,
 		}
 
 		http.SetCookie(w, &cookie)
@@ -160,11 +210,20 @@ func admin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := db.Get([]byte(cookie.Value), nil)
+	data, err := db.Get([]byte(fmt.Sprintf("cookie:%s", cookie.Value)), nil)
+
+	var cookieObj Cookie
+
+	err = json.Unmarshal(data, &cookieObj)
+	if err != nil {
+		log.Println(err)
+	}
+
+	data2, err := db.Get([]byte(fmt.Sprintf("user:%s", cookieObj.TwitchID)), nil)
 
 	var userObj User
 
-	err = json.Unmarshal(data, &userObj)
+	err = json.Unmarshal(data2, &userObj)
 	if err != nil {
 		log.Println(err)
 	}
@@ -172,7 +231,6 @@ func admin(w http.ResponseWriter, r *http.Request) {
 	log.Println(fmt.Sprintf("oauth:%s", userObj.AccessToken))
 
 	t := Template{
-		AuthToken:    cookie.Value,
 		ModifiedHash: getModHash(filename),
 	}
 
