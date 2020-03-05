@@ -7,35 +7,152 @@ import (
 	twitch "github.com/gempir/go-twitch-irc/v2"
 	"github.com/matryer/anno"
 	"github.com/nicklaw5/helix"
+	"github.com/syndtr/goleveldb/leveldb/util"
 	"log"
+	"time"
 )
 
-func getChannelName(accessToken string) string {
-	log.Println("creating twitch client")
-	client, err := helix.NewClient(&helix.Options{
-		ClientID:        clientID,
-		UserAccessToken: accessToken,
-	})
+func twitchIRCHandler() {
+	iter := db.NewIterator(util.BytesPrefix([]byte("user:")), nil)
+	for iter.Next() {
+		var user User
+		err := json.Unmarshal(iter.Value(), &user)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
+		if _, ok := clientConnections[user.TwitchID]; !ok {
+			clientConnections[user.TwitchID] = connectToTwitch(user)
+			user.Connected = true
+			b, err := json.Marshal(user)
+			if err != nil {
+				log.Printf("Error: %s", err)
+				return
+			}
+
+			// We store the user object with the twitchID for reference
+			err = db.Put([]byte(fmt.Sprintf("user:%s", user.TwitchID)), b, nil)
+
+			if err != nil {
+				log.Println(err)
+				return
+			}
+		}
+	}
+	iter.Release()
+	err := iter.Error()
 	if err != nil {
 		log.Println(err)
-		return ""
 	}
-	userResponse, err := client.GetUsers(&helix.UsersParams{})
-
-	if err != nil {
-		log.Println(err)
-		return ""
-	}
-
-	for _, user := range userResponse.Data.Users {
-		return user.DisplayName
-	}
-	return ""
+	// Sleep for 10 minutes
+	time.Sleep(5 * time.Second)
 }
 
-func connectToTwitch(accessToken string, channel string) *twitch.Client {
+// refreshHandler refreshes tokens every 10 minutes if needed
+func refreshHandler() {
+	for {
+		// After 10 minutes we try to refresh our tokens
+		iter := db.NewIterator(util.BytesPrefix([]byte("user:")), nil)
+		for iter.Next() {
+			// Use key/value.
+			log.Println(string(iter.Key()))
+			log.Println(string(iter.Value()))
+			var user User
+			err := json.Unmarshal(iter.Value(), &user)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+
+			// if user token expires in the next 10 min
+			if user.TokenExpiry.Before(time.Now().Add(2 * time.Hour)) {
+				log.Printf("Refreshing tokens for: %s\n", user.TwitchID)
+				client, err := helix.NewClient(&helix.Options{
+					ClientID:     clientID,
+					ClientSecret: clientSecret,
+					RedirectURI:  redirectURL,
+				})
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				refreshResponse, err := client.RefreshUserAccessToken(user.RefreshToken)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				user.RefreshToken = refreshResponse.Data.RefreshToken
+				user.AccessToken = refreshResponse.Data.AccessToken
+
+				tokenExpiry := time.Now().Add(time.Duration(refreshResponse.Data.ExpiresIn) * time.Second)
+
+				log.Printf("Refreshed: New tokens should refresh at %s", tokenExpiry.String())
+
+				user.TokenExpiry = tokenExpiry
+
+				b, err := json.Marshal(user)
+				if err != nil {
+					log.Printf("Error: %s", err)
+					return
+				}
+
+				// We store the user object with the twitchID for reference
+				err = db.Put([]byte(fmt.Sprintf("user:%s", user.TwitchID)), b, nil)
+
+				if err != nil {
+					log.Println(err)
+					return
+				}
+			}
+		}
+		iter.Release()
+		err := iter.Error()
+		if err != nil {
+			log.Println(err)
+		}
+		// Sleep for 10 minutes
+		time.Sleep(10 * time.Minute)
+	}
+}
+
+func reconnectHandler(user User) {
+	var updatedUser User
+
+	log.Printf("Reconnecting to Twitch %s\n", user.TwitchID)
+
+	data, err := db.Get([]byte(fmt.Sprintf("user:%s", user.TwitchID)), nil)
+
+	if err != nil {
+		log.Println(err)
+	}
+
+	err = json.Unmarshal(data, &updatedUser)
+
+	if err != nil {
+		log.Println(err)
+	}
+
+	updatedUser.Connected = false
+
+	client := connectToTwitch(updatedUser)
+
+	clientConnections[user.TwitchID] = client
+
+	b, err := json.Marshal(updatedUser)
+	if err != nil {
+		log.Printf("Error: %s", err)
+		return
+	}
+	updatedUser.Connected = true
+	db.Put([]byte(fmt.Sprintf("user:%s", updatedUser.TwitchID)), b, nil)
+
+	log.Println("Connect started for reconnect")
+}
+
+func connectToTwitch(user User) *twitch.Client {
 	log.Println("creating twitch client")
-	client := twitch.NewClient("uberswe", fmt.Sprintf("oauth:%s", accessToken))
+	client := twitch.NewClient("uberswe", fmt.Sprintf("oauth:%s", user.AccessToken))
 
 	log.Println("configuring twitch client")
 	client.OnConnect(func() {
@@ -43,10 +160,18 @@ func connectToTwitch(accessToken string, channel string) *twitch.Client {
 
 		initmsg := WebsocketMessage{
 			Key:     "channel",
-			Channel: channel,
+			Channel: user.Channel.Name,
 		}
 
 		broadcast <- initmsg
+	})
+
+	client.OnPingMessage(func(message twitch.PingMessage) {
+		log.Printf("Ping received: %s\n", message.Message)
+	})
+
+	client.OnPongMessage(func(message twitch.PongMessage) {
+		log.Printf("Pong received: %s\n", message.Message)
 	})
 
 	client.OnPrivateMessage(func(message twitch.PrivateMessage) {
@@ -108,12 +233,16 @@ func connectToTwitch(accessToken string, channel string) *twitch.Client {
 		broadcast <- initmsg
 	})
 
-	client.Join(channel)
+	client.Join(user.Channel.Name)
 
 	go func() {
 		err := client.Connect()
 		if err != nil {
+			log.Printf("Error in twitch irc connection for %s\n", user.TwitchID)
 			log.Println(err)
+			time.Sleep(10 * time.Second)
+			user.Connected = false
+			reconnectHandler(user)
 		}
 	}()
 
