@@ -1,6 +1,7 @@
 package botsbyuberswe
 
 import (
+	"github.com/gempir/go-twitch-irc/v2"
 	"github.com/gorilla/websocket"
 	"github.com/syndtr/goleveldb/leveldb"
 	"io"
@@ -12,14 +13,15 @@ import (
 )
 
 var (
-	cookieName   = "botbyuber"
-	clients      = make(map[*websocket.Conn]bool) // connected clients
-	broadcast    = make(chan WebsocketMessage)    // broadcast channel
-	upgrader     websocket.Upgrader
-	db           *leveldb.DB
-	clientID     = "***REMOVED***"
-	clientSecret = "***REMOVED***"
-	redirectURL  = "https://bots.uberswe.com/callback"
+	cookieName        = "botbyuber"
+	clients           = make(map[*websocket.Conn]bool) // connected clients
+	broadcast         = make(chan WebsocketMessage)    // broadcast channel
+	upgrader          websocket.Upgrader
+	db                *leveldb.DB
+	clientID          = "***REMOVED***"
+	clientSecret      = "***REMOVED***"
+	redirectURL       = "https://bots.uberswe.com/callback"
+	clientConnections = make(map[string]*twitch.Client)
 )
 
 // Define our message object
@@ -65,6 +67,12 @@ func Run() {
 	// Routes
 
 	routes()
+
+	// Refresh tokens every 10 min
+	go refreshHandler()
+
+	// Connect to twitch channels every 5 seconds
+	go twitchIRCHandler()
 
 	log.Println("Listening on port 8010")
 	err = http.ListenAndServe(":8010", nil)

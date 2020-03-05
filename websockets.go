@@ -27,6 +27,7 @@ type User struct {
 	Channel      Channel   `json:"channel,omitempty"`
 	Commands     []Command `json:"commands,omitempty"`
 	State        State     `json:"state,omitempty"`
+	Connected    bool      `json:"connected,omitempty"`
 }
 
 type Command struct {
@@ -35,11 +36,10 @@ type Command struct {
 }
 
 type Channel struct {
-	Name     string         `json:"name,omitempty"`
-	Client   *twitch.Client `json:"client,omitempty"`
-	IsMod    bool           `json:"is_mod,omitempty"`
-	LastHost string         `json:"last_host,omitempty"`
-	LastRaid string         `json:"last_raid,omitempty"`
+	Name     string `json:"name,omitempty"`
+	IsMod    bool   `json:"is_mod,omitempty"`
+	LastHost string `json:"last_host,omitempty"`
+	LastRaid string `json:"last_raid,omitempty"`
 }
 
 type WebsocketMessage struct {
@@ -135,31 +135,30 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if authenticated {
-		channelName := getChannelName(user.AccessToken)
-		if !user.isConnected(channelName) {
-			var channel Channel
-			log.Printf("Connect to channel %s: %s\n", user.AccessToken, channelName)
+		// TODO currently we connect inside the websocket area
+		// but the connection should not be websocket dependent
+		// and should be moved elsewhere
+		if !user.Connected {
+			log.Printf("Connect to channel %s: %s\n", user.AccessToken, user.Channel.Name)
 			log.Println("connectToTwitch")
-			client := connectToTwitch(user.AccessToken, channelName)
-			channel.Name = channelName
-			// Client is returned but the state might not be connected
-			channel.Client = client
+			client := connectToTwitch(user)
 
-			user.Channel = channel
+			clientConnections[user.TwitchID] = client
 
 			b, err := json.Marshal(user)
 			if err != nil {
 				log.Printf("Error: %s", err)
 				return
 			}
-			db.Put([]byte(cookie.Value), b, nil)
+			user.Connected = true
+			db.Put([]byte(fmt.Sprintf("user:%s", user.TwitchID)), b, nil)
 
 			log.Println("Connect started")
-		} else if user.isConnected(channelName) {
+		} else if user.Connected {
 			log.Println("user already connected")
 			initmsg := WebsocketMessage{
 				Key:     "channel",
-				Channel: channelName,
+				Channel: user.Channel.Name,
 			}
 
 			broadcast <- initmsg
@@ -198,25 +197,6 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-}
-
-func (u User) isConnected(channel string) bool {
-	if u.Channel.Name == channel {
-		return true
-	}
-
-	return false
-}
-
-func (u User) disconnect(channel string) {
-	if u.Channel.Name == channel {
-		err := u.Channel.Client.Disconnect()
-		if err != nil {
-			log.Println(err)
-		}
-		return
-	}
-
 }
 
 func (u User) createCommand(command Command) bool {
