@@ -1,4 +1,5 @@
 const messages = document.getElementById ('messages');
+const commands = document.getElementById('commands')
 
 let ws = new WebSocket ('wss://' + window.location.host + '/ws');
 if (location.protocol !== 'https:')
@@ -7,7 +8,6 @@ if (location.protocol !== 'https:')
 }
 ws.addEventListener ('message', function (e) {
     let msg = JSON.parse (e.data);
-    console.log(msg);
     // {
     //    "key":"notice",
     //    "private_message":{"User":{"ID":"23198345","Name":"im_slaughter","DisplayName":"Im_Slaughter","Color":"#1E90FF","Badges":{"subscriber":3}},"Raw":"@badge-info=subscriber/5;badges=subscriber/3;color=#1E90FF;display-name=Im_Slaughter;emotes=;flags=;id=45b903a3-369d-4bcf-b4dd-6719596c4b9a;mod=0;room-id=158130480;subscriber=1;tmi-sent-ts=1577843394570;turbo=0;user-id=23198345;user-type= :im_slaughter!im_slaughter@im_slaughter.tmi.twitch.tv PRIVMSG #tweak :@mario_espo i swear this event is gonna make this game explode in popularity","Type":1,"RawType":"PRIVMSG","Tags":{"badge-info":"subscriber/5","badges":"subscriber/3","color":"#1E90FF","display-name":"Im_Slaughter","emotes":"","flags":"","id":"45b903a3-369d-4bcf-b4dd-6719596c4b9a","mod":"0","room-id":"158130480","subscriber":"1","tmi-sent-ts":"1577843394570","turbo":"0","user-id":"23198345","user-type":""},"Message":"@mario_espo i swear this event is gonna make this game explode in popularity","Channel":"tweak","RoomID":"158130480","ID":"45b903a3-369d-4bcf-b4dd-6719596c4b9a","Time":"2020-01-01T02:49:54.57+01:00","Emotes":null,"Bits":0,"Action":false}}
@@ -19,9 +19,12 @@ ws.addEventListener ('message', function (e) {
         channelEndReceive (msg.value);
     } else if (msg.key === "addcommand") {
         channelEndReceive (msg.value);
-    }  else if (msg.key === "removecommand") {
+    } else if (msg.key === "removecommand") {
         channelEndReceive (msg.value);
-    }  else {
+    } else if (msg.key === "state") {
+        userStateHandler (msg.state);
+    } else {
+        console.log ("message not processed: ")
         console.log (msg)
     }
 });
@@ -45,12 +48,12 @@ document.getElementById ("createcommand").addEventListener ('click', function (e
     ws.send (jsonmsg);
 });
 
-document.getElementById ("removecommand").addEventListener ('click', function (e) {
+function removeCommandClicked(e) {
     e.preventDefault ();
     let cmd = e.currentTarget.parentNode.querySelector('p').innerText;
     console.log({key: "removecommand", text: cmd});
     ws.send (JSON.stringify ({key: "removecommand", text: cmd}));
-});
+}
 
 function appendMessage(m, c) {
     var message = document.createElement ('div');
@@ -90,6 +93,42 @@ function channelEndReceive(message) {
 
 function scrollToBottom() {
     messages.scrollTop = messages.scrollHeight;
+}
+
+function appendCommand(command) {
+    var p = document.createElement ('p');
+    var b = document.createElement ('b');
+    b.innerText = command["input"];
+    p.appendChild(b);
+    var c = document.createElement ('div');
+    c.className = "cmd";
+    c.appendChild(p);
+    var p2 = document.createElement('p');
+    p2.innerText = command["output"];
+    c.appendChild(p2);
+    var button = document.createElement('button');
+    button.type = "submit";
+    button.className = "btn btn-danger";
+    button.id = "removecommand";
+    button.innerText = "Remove";
+    button.addEventListener('click',  removeCommandClicked);
+    c.appendChild(button);
+    commands.appendChild (c);
+}
+
+function clearCommands() {
+    commands.innerHTML = "";
+}
+
+function userStateHandler(state) {
+    console.log("User state received");
+    console.log(state);
+    if (state["commands"] !== undefined) {
+        clearCommands();
+        state["commands"].forEach(function (value, index, array) {
+            appendCommand(value);
+        });
+    }
 }
 
 scrollToBottom ();

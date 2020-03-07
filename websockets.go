@@ -25,7 +25,6 @@ type User struct {
 	Scopes       []string  `json:"scopes,omitempty"`
 	TokenType    string    `json:"token_type,omitempty"`
 	Channel      Channel   `json:"channel,omitempty"`
-	Commands     []Command `json:"commands,omitempty"`
 	State        State     `json:"state,omitempty"`
 	Connected    bool      `json:"connected,omitempty"`
 }
@@ -52,8 +51,15 @@ type WebsocketMessage struct {
 	State          State                 `json:"state,omitempty"`
 }
 
+type Variable struct {
+	Name   string    `json:"name,omitempty"`
+	Value  string    `json:"value,omitempty"`
+	Expiry time.Time `json:"expiry,omitempty"`
+}
+
 type State struct {
-	Commands []Command `json:"commands,omitempty"`
+	Commands  []Command  `json:"commands,omitempty"`
+	Variables []Variable `json:"variables,omitempty"`
 }
 
 func initWebsockets() {
@@ -72,6 +78,7 @@ func handleMessages() {
 		// Send it out to every client that is currently connected
 		for client := range clients {
 			err := client.WriteJSON(msg)
+			log.Println("Writing message to all clients")
 			if err != nil {
 				log.Printf("error: %v", err)
 				err := client.Close()
@@ -103,20 +110,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Cant find cookie :/\r\n")
 	} else {
-		log.Printf("cookie val: %s", cookie.Value)
-
-		data, err := db.Get([]byte(fmt.Sprintf("cookie:%s", cookie.Value)), nil)
-
-		var cookieObj Cookie
-
-		err = json.Unmarshal(data, &cookieObj)
-		if err != nil {
-			log.Println(err)
-		}
-
-		data2, err := db.Get([]byte(fmt.Sprintf("user:%s", cookieObj.TwitchID)), nil)
-
-		err = json.Unmarshal(data2, &user)
+		user, err = getUserFromCookie(cookie)
 		if err != nil {
 			log.Println(err)
 			delete(clients, ws)
@@ -130,14 +124,16 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 				State:   user.State,
 			}
 
-			broadcast <- statemsg
+			err := ws.WriteJSON(statemsg)
+			if err != nil {
+				log.Printf("Error: %s", err)
+				delete(clients, ws)
+				return
+			}
 		}
 	}
 
 	if authenticated {
-		// TODO currently we connect inside the websocket area
-		// but the connection should not be websocket dependent
-		// and should be moved elsewhere
 		if !user.Connected {
 			log.Printf("Connect to channel %s: %s\n", user.AccessToken, user.Channel.Name)
 			log.Println("connectToTwitch")
@@ -145,14 +141,13 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 
 			clientConnections[user.TwitchID] = client
 
-			b, err := json.Marshal(user)
+			user.Connected = true
+			err = user.store()
 			if err != nil {
 				log.Printf("Error: %s", err)
+				delete(clients, ws)
 				return
 			}
-			user.Connected = true
-			db.Put([]byte(fmt.Sprintf("user:%s", user.TwitchID)), b, nil)
-
 			log.Println("Connect started")
 		} else if user.Connected {
 			log.Println("user already connected")
@@ -161,7 +156,12 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 				Channel: user.Channel.Name,
 			}
 
-			broadcast <- initmsg
+			err := ws.WriteJSON(initmsg)
+			if err != nil {
+				log.Printf("Error: %s", err)
+				delete(clients, ws)
+				return
+			}
 		} else {
 			log.Println("invalid channel name")
 		}
@@ -178,19 +178,61 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf("%s: %v\n", msg.Key, msg)
 		log.Printf("Authenticated: %t\n", authenticated)
-		// TODO connect if not connected
-		// TODO refresh tokens
 		if authenticated {
 			if msg.Key == "createcommand" {
-				// TODO create a command
+				// TODO validation?
 				log.Println(msg.Command, msg.Text)
+				user.createCommand(Command{
+					Input:  msg.Command,
+					Output: msg.Text,
+				})
+				err = user.store()
+
+				if err != nil {
+					log.Printf("error: %v", err)
+					delete(clients, ws)
+					break
+				}
+
+				statemsg := WebsocketMessage{
+					Key:     "state",
+					Channel: user.Channel.Name,
+					State:   user.State,
+				}
+
+				err := ws.WriteJSON(statemsg)
+				if err != nil {
+					log.Printf("Error: %s", err)
+					delete(clients, ws)
+					return
+				}
 			} else if msg.Key == "removecommand" {
-				// TODO remove a command
 				log.Println(msg.Command, msg.Text)
-				for key, command := range user.State.Commands {
+				for _, command := range user.State.Commands {
 					if command.Input == msg.Text {
-						user.State.Commands = deleteCommand(user.State.Commands, key)
+						user.removeCommand(command)
 					}
+				}
+
+				err = user.store()
+
+				if err != nil {
+					log.Printf("error: %v", err)
+					delete(clients, ws)
+					break
+				}
+
+				statemsg := WebsocketMessage{
+					Key:     "state",
+					Channel: user.Channel.Name,
+					State:   user.State,
+				}
+
+				err := ws.WriteJSON(statemsg)
+				if err != nil {
+					log.Printf("Error: %s", err)
+					delete(clients, ws)
+					return
 				}
 			} else {
 				log.Printf("No matching command found: '%s'\n", msg.Key)
@@ -199,20 +241,52 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (u User) createCommand(command Command) bool {
-	for _, c := range u.Commands {
+func getUserFromCookie(cookie *http.Cookie) (User, error) {
+	var cookieObj Cookie
+	var user User
+	log.Printf("cookie val: %s", cookie.Value)
+	data, err := db.Get([]byte(fmt.Sprintf("cookie:%s", cookie.Value)), nil)
+	err = json.Unmarshal(data, &cookieObj)
+	if err != nil {
+		return user, nil
+	}
+	return getUserFromTwitchID(cookieObj.TwitchID)
+}
+
+func getUserFromTwitchID(twitchID string) (User, error) {
+	var user User
+	data, err := db.Get([]byte(fmt.Sprintf("user:%s", twitchID)), nil)
+	err = json.Unmarshal(data, &user)
+	if err != nil {
+		log.Println(err)
+		return user, nil
+	}
+	return user, nil
+}
+
+func (u *User) store() error {
+	b, err := json.Marshal(u)
+	if err != nil {
+		log.Printf("Error: %s", err)
+		return err
+	}
+	return db.Put([]byte(fmt.Sprintf("user:%s", u.TwitchID)), b, nil)
+}
+
+func (u *User) createCommand(command Command) bool {
+	for _, c := range u.State.Commands {
 		if c.Input == command.Input {
 			return false
 		}
 	}
-	u.Commands = append(u.Commands, command)
+	u.State.Commands = append(u.State.Commands, command)
 	return true
 }
 
-func (u User) removeCommand(command Command) bool {
-	for i, c := range u.Commands {
+func (u *User) removeCommand(command Command) bool {
+	for i, c := range u.State.Commands {
 		if c.Input == command.Input {
-			u.Commands = append(u.Commands[:i], u.Commands[i+1:]...)
+			u.State.Commands = deleteCommand(u.State.Commands, i)
 			return true
 		}
 	}
