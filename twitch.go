@@ -152,7 +152,7 @@ func reconnectHandler(user User) {
 
 func connectToTwitch(user User) *twitch.Client {
 	log.Println("creating twitch client")
-	client := twitch.NewClient("uberswe", fmt.Sprintf("oauth:%s", user.AccessToken))
+	client := twitch.NewClient(user.Channel.Name, fmt.Sprintf("oauth:%s", user.AccessToken))
 
 	log.Println("configuring twitch client")
 	client.OnConnect(func() {
