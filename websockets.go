@@ -52,9 +52,10 @@ type WebsocketMessage struct {
 }
 
 type Variable struct {
-	Name   string    `json:"name,omitempty"`
-	Value  string    `json:"value,omitempty"`
-	Expiry time.Time `json:"expiry,omitempty"`
+	Name        string    `json:"name,omitempty"`
+	Value       string    `json:"value,omitempty"`
+	Description string    `json:"description,omitempty"`
+	Expiry      time.Time `json:"expiry,omitempty"`
 }
 
 type State struct {
