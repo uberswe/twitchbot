@@ -1,5 +1,6 @@
 const messages = document.getElementById ('messages');
-const commands = document.getElementById('commands')
+const commands = document.getElementById('commands');
+const variables = document.getElementById('variables');
 
 let ws = new WebSocket ('wss://' + window.location.host + '/ws');
 if (location.protocol !== 'https:')
@@ -116,8 +117,23 @@ function appendCommand(command) {
     commands.appendChild (c);
 }
 
+function appendVariable(variable) {
+    var p = document.createElement ('p');
+    var b = document.createElement ('b');
+    b.innerText = variable["name"];
+    var span = document.createElement ('span');
+    span.innerHTML = " - " + variable["description"];
+    p.appendChild(b);
+    p.appendChild(span);
+    variables.appendChild(p);
+}
+
 function clearCommands() {
     commands.innerHTML = "";
+}
+
+function clearVariables() {
+    variables.innerHTML = "";
 }
 
 function userStateHandler(state) {
@@ -127,6 +143,12 @@ function userStateHandler(state) {
         clearCommands();
         state["commands"].forEach(function (value, index, array) {
             appendCommand(value);
+        });
+    }
+    if (state["variables"] !== undefined) {
+        clearVariables();
+        state["variables"].forEach(function (value, index, array) {
+            appendVariable(value);
         });
     }
 }

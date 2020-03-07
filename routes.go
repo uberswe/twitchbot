@@ -159,7 +159,24 @@ func callback(w http.ResponseWriter, r *http.Request) {
 						Output: "Check out and follow @{user}! https://twitch.tv/{user}",
 					},
 				},
-				Variables: nil,
+				Variables: []Variable{
+					{
+						Name:        "user",
+						Description: "If your command specified a user such as <b>@uberswe</b>.",
+					},
+					{
+						Name:        "lasthost",
+						Description: "This will be the user who last hosted your channel.",
+					},
+					{
+						Name:        "lastraid",
+						Description: "This will be the user who last raided your channel.",
+					},
+					{
+						Name:        "lasthostraid",
+						Description: "This will be the user who last hosted or raided your channel.",
+					},
+				},
 			},
 		}
 
