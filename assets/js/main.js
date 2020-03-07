@@ -1,6 +1,9 @@
 const messages = document.getElementById ('messages');
 const commands = document.getElementById('commands');
 const variables = document.getElementById('variables');
+const alertArea = document.getElementById('alert-area');
+const commandField = document.getElementById ("command");
+const commandDescriptionField = document.getElementById ("commandtext");
 
 let ws = new WebSocket ('wss://' + window.location.host + '/ws');
 if (location.protocol !== 'https:')
@@ -24,6 +27,8 @@ ws.addEventListener ('message', function (e) {
         channelEndReceive (msg.value);
     } else if (msg.key === "state") {
         userStateHandler (msg.state);
+    } else if (msg.key === "alert") {
+        alertHandler (msg.text, msg.alert_type);
     } else {
         console.log ("message not processed: ")
         console.log (msg)
@@ -42,10 +47,9 @@ document.getElementById ("createcommand").addEventListener ('click', function (e
     e.preventDefault ();
     let jsonmsg = JSON.stringify ({
         key: "createcommand",
-        command: document.getElementById ("command").value,
-        text: document.getElementById ("commandtext").value
+        command: commandField.value,
+        text: commandDescriptionField.value
     })
-    console.log(jsonmsg)
     ws.send (jsonmsg);
 });
 
@@ -115,6 +119,8 @@ function appendCommand(command) {
     button.addEventListener('click',  removeCommandClicked);
     c.appendChild(button);
     commands.appendChild (c);
+    commandField.value = "";
+    commandDescriptionField.value = "";
 }
 
 function appendVariable(variable) {
@@ -151,6 +157,13 @@ function userStateHandler(state) {
             appendVariable(value);
         });
     }
+}
+
+function alertHandler (text, type) {
+    alertArea.innerHTML = "<div class=\"alert alert-" + type + "\" role=\"alert\">" + text + "</div>";
+    setTimeout(function() {
+        alertArea.innerHTML = "";
+    }, 5000);
 }
 
 scrollToBottom ();

@@ -49,6 +49,7 @@ type WebsocketMessage struct {
 	MsgParams      map[string]string     `json:"msg_params,omitempty"`
 	PrivateMessage twitch.PrivateMessage `json:"private_message,omitempty"`
 	State          State                 `json:"state,omitempty"`
+	AlertType      string                `json:"alert_type,omitempty"`
 }
 
 type Variable struct {
@@ -207,6 +208,19 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 					delete(clients, ws)
 					return
 				}
+
+				alertmsg := WebsocketMessage{
+					Key:       "alert",
+					Text:      "Command added successfully",
+					AlertType: "success",
+				}
+
+				err = ws.WriteJSON(alertmsg)
+				if err != nil {
+					log.Printf("Error: %s", err)
+					delete(clients, ws)
+					return
+				}
 			} else if msg.Key == "removecommand" {
 				log.Println(msg.Command, msg.Text)
 				for _, command := range user.State.Commands {
@@ -230,6 +244,19 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 				}
 
 				err := ws.WriteJSON(statemsg)
+				if err != nil {
+					log.Printf("Error: %s", err)
+					delete(clients, ws)
+					return
+				}
+
+				alertmsg := WebsocketMessage{
+					Key:       "alert",
+					Text:      "Command removed successfully",
+					AlertType: "success",
+				}
+
+				err = ws.WriteJSON(alertmsg)
 				if err != nil {
 					log.Printf("Error: %s", err)
 					delete(clients, ws)
