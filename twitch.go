@@ -170,10 +170,6 @@ func connectToTwitch(user User) *twitch.Client {
 		log.Printf("Ping received: %s\n", message.Message)
 	})
 
-	client.OnPongMessage(func(message twitch.PongMessage) {
-		log.Printf("Pong received: %s\n", message.Message)
-	})
-
 	client.OnPrivateMessage(func(message twitch.PrivateMessage) {
 
 		commands := anno.FieldFunc("command", func(s []byte) (bool, []byte) {

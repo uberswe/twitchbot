@@ -151,6 +151,16 @@ func callback(w http.ResponseWriter, r *http.Request) {
 			Channel: Channel{
 				Name: channelName,
 			},
+			State: State{
+				Commands: []Command{
+					// This is the default command for every new user
+					{
+						Input:  "!so {user}",
+						Output: "Check out and follow @{user}! https://twitch.tv/{user}",
+					},
+				},
+				Variables: nil,
+			},
 		}
 
 		b, err := json.Marshal(user)
