@@ -109,7 +109,7 @@ func callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// The following is an example of the callback request
-	// http://localhost:8010/callback?code=1b4h2pcqfgpzu5r6z4we5st0qe7nri&scope=chat%3Aread+user%3Aread%3Abroadcast+bits%3Aread+channel%3Aread%3Asubscriptions+analytics%3Aread%3Agames+analytics%3Aread%3Aextensions&state=uberstate
+	// ?code=1b4h2pcqfgpzu5r6z4we5st0qe7nri&scope=chat%3Aread+user%3Aread%3Abroadcast+bits%3Aread+channel%3Aread%3Asubscriptions+analytics%3Aread%3Agames+analytics%3Aread%3Aextensions&state=uberstate
 	if val, ok := r.URL.Query()["code"]; ok && len(val) > 0 {
 		log.Println(val)
 		// TODO we can keep the client for the entire application?? No need to make a new one every time?
@@ -132,6 +132,9 @@ func callback(w http.ResponseWriter, r *http.Request) {
 
 		log.Printf("%+v\n", resp)
 
+		// This key is generated for our cookie
+		// TODO consider using HMAC with IP/useragent validation for additional verification
+		// TODO or change this to use UUID for generation
 		key := RandString(155)
 
 		tokenExpiry := time.Now().Add(time.Duration(resp.Data.ExpiresIn) * time.Second)
@@ -278,7 +281,7 @@ func botCallback(w http.ResponseWriter, r *http.Request) {
 		log.Printf("botCallback state: %s", state[0])
 		log.Printf("botCallback code: %s", code[0])
 
-		// TODO we can keep the client for the entire application?? No need to make a new one every time?
+		// This client is used to get the initial user access token, we should not need this after this initial authentication
 		client, err := helix.NewClient(&helix.Options{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
@@ -300,7 +303,6 @@ func botCallback(w http.ResponseWriter, r *http.Request) {
 
 		// TODO set up a client here which should post for the user
 		// TODO check if the user is "botbyuber" and if so then this should be the universal bot
-
 		return
 	} else {
 		http.Error(w, "Unexpected response from Twitch, please try again!", 500)
