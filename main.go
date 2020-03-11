@@ -2,6 +2,7 @@ package botsbyuberswe
 
 import (
 	"github.com/gempir/go-twitch-irc/v2"
+	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/syndtr/goleveldb/leveldb"
 	"io"
@@ -22,12 +23,14 @@ var (
 	clientSecret      = "***REMOVED***"
 	redirectURL       = "https://bots.uberswe.com/callback"
 	clientConnections = make(map[string]*twitch.Client)
+	r                 *mux.Router
 )
 
 // Define our message object
 
 type Template struct {
 	ModifiedHash string
+	BotUrl       string
 }
 
 type HashRequest struct {
@@ -60,6 +63,9 @@ func Run() {
 
 	defer db.Close()
 
+	// Mux router
+	r = mux.NewRouter()
+
 	// Websockets
 
 	initWebsockets()
@@ -75,9 +81,13 @@ func Run() {
 	go twitchIRCHandler()
 
 	log.Println("Listening on port 8010")
-	err = http.ListenAndServe(":8010", nil)
-
-	if err != nil {
-		panic(err)
+	srv := &http.Server{
+		Handler: r,
+		Addr:    ":8010",
+		// Good practice: enforce timeouts for servers you create!
+		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  15 * time.Second,
 	}
+
+	log.Fatal(srv.ListenAndServe())
 }

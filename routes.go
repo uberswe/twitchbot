@@ -1,8 +1,11 @@
 package botsbyuberswe
 
 import (
+	"crypto/sha1"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/gorilla/mux"
 	"github.com/nicklaw5/helix"
 	"html/template"
 	"io/ioutil"
@@ -15,24 +18,45 @@ import (
 )
 
 func routes() {
+
 	fs := http.FileServer(http.Dir("assets"))
-	http.Handle("/assets/", http.StripPrefix("/assets/", fs))
+	r.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", fs))
 
-	http.HandleFunc("/callback", callback)
+	r.HandleFunc("/callback", callback)
 
-	http.HandleFunc("/admin", admin)
+	r.HandleFunc("/admin", admin)
 
-	http.HandleFunc("/login", login)
+	r.HandleFunc("/login", login)
 
-	http.HandleFunc("/", index)
+	// TODO redirect index if authenticated already
+	r.HandleFunc("/", index)
+
+	r.HandleFunc("/bot/callback", botCallback)
+
+	r.HandleFunc("/bot/{key}", addBot)
+}
+
+func addBot(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	log.Printf("Key: %v\n", vars["key"])
+	scopes := "chat:read channel:moderate chat:edit whispers:read whispers:edit"
+	redirectURL = fmt.Sprintf("https://%s/bot/callback", r.Host)
+	if strings.Contains(r.Host, "localhost") {
+		redirectURL = fmt.Sprintf("http://%s/bot/callback", r.Host)
+	}
+	responseType := "code"
+	http.Redirect(w, r, fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?client_id=%s&redirect_uri=%s&response_type=%s&scope=%s&force_verify=%s&state=%s", clientID, redirectURL, responseType, scopes, "true", vars["key"]), 302)
+	return
 }
 
 // getModHash returns a string based on when the file or any included files was last modified, currently just a nano timestamp
 func getModHash(file string) string {
+	hasher := sha1.New()
 	info, err := os.Stat(file)
 	if err != nil {
 		log.Println(err)
-		return "-1"
+		hasher.Write([]byte("-1"))
+		return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 	}
 	modTime := info.ModTime()
 	files, err := ioutil.ReadDir("assets/css/")
@@ -41,7 +65,8 @@ func getModHash(file string) string {
 	}
 	for _, f := range files {
 		if f.ModTime().After(modTime) {
-			return strconv.FormatInt(f.ModTime().UnixNano(), 10)
+			hasher.Write([]byte(strconv.FormatInt(f.ModTime().UnixNano(), 10)))
+			return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 		}
 	}
 	files, err = ioutil.ReadDir("assets/js/")
@@ -50,16 +75,18 @@ func getModHash(file string) string {
 	}
 	for _, f := range files {
 		if f.ModTime().After(modTime) {
-			return strconv.FormatInt(f.ModTime().UnixNano(), 10)
+			hasher.Write([]byte(strconv.FormatInt(f.ModTime().UnixNano(), 10)))
+			return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 		}
 	}
-	return strconv.FormatInt(modTime.UnixNano(), 10)
+	hasher.Write([]byte(strconv.FormatInt(modTime.UnixNano(), 10)))
+	return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 }
 
 func loadTemplateFile(file string, w http.ResponseWriter) {
 	tmpl := template.Must(template.ParseFiles(file))
 	err := tmpl.Execute(w, Template{
-		ModifiedHash: getModHash(file), // TODO make this a hash in the future
+		ModifiedHash: getModHash(file),
 	})
 	if err != nil {
 		log.Println(err)
@@ -137,61 +164,80 @@ func callback(w http.ResponseWriter, r *http.Request) {
 			Expiry:   cookieExpiry,
 		}
 
-		// TODO check if user already exists
+		user, err := getUserFromTwitchID(twitchID)
 
-		user := User{
-			TwitchID:     twitchID,
-			Email:        email,
-			AccessCode:   val[0],
-			AccessToken:  resp.Data.AccessToken,
-			RefreshToken: resp.Data.RefreshToken,
-			TokenExpiry:  tokenExpiry,
-			Scopes:       resp.Data.Scopes,
-			TokenType:    "code",
-			Channel: Channel{
-				Name: channelName,
-			},
-			State: State{
-				Commands: []Command{
-					// This is the default command for every new user
-					{
-						Input:  "!so {user}",
-						Output: "Check out and follow @{user}! https://twitch.tv/{user}",
+		// If the user does not exist we create a new user
+		if err != nil {
+			botToken := RandString(30)
+			user = User{
+				TwitchID:     twitchID,
+				Email:        email,
+				AccessCode:   val[0],
+				AccessToken:  resp.Data.AccessToken,
+				RefreshToken: resp.Data.RefreshToken,
+				TokenExpiry:  tokenExpiry,
+				Scopes:       resp.Data.Scopes,
+				TokenType:    "code",
+				BotToken:     botToken,
+				Channel: Channel{
+					Name: channelName,
+				},
+				State: State{
+					Commands: []Command{
+						// This is the default command for every new user
+						{
+							Input:  "!so {user}",
+							Output: "Check out and follow @{user}! https://twitch.tv/{user}",
+						},
+					},
+					Variables: []Variable{
+						{
+							Name:        "user",
+							Description: "If your command specified a user such as <b>@uberswe</b>.",
+						},
+						{
+							Name:        "lasthost",
+							Description: "This will be the user who last hosted your channel.",
+						},
+						{
+							Name:        "lastraid",
+							Description: "This will be the user who last raided your channel.",
+						},
+						{
+							Name:        "lasthostraid",
+							Description: "This will be the user who last hosted or raided your channel.",
+						},
 					},
 				},
-				Variables: []Variable{
-					{
-						Name:        "user",
-						Description: "If your command specified a user such as <b>@uberswe</b>.",
-					},
-					{
-						Name:        "lasthost",
-						Description: "This will be the user who last hosted your channel.",
-					},
-					{
-						Name:        "lastraid",
-						Description: "This will be the user who last raided your channel.",
-					},
-					{
-						Name:        "lasthostraid",
-						Description: "This will be the user who last hosted or raided your channel.",
-					},
-				},
-			},
-		}
+			}
 
-		b, err := json.Marshal(user)
-		if err != nil {
-			log.Printf("Error: %s", err)
-			return
-		}
+			btoken := BotToken{
+				Token:    botToken,
+				TwitchID: twitchID,
+			}
 
-		// We store the user object with the twitchID for reference
-		err = db.Put([]byte(fmt.Sprintf("user:%s", twitchID)), b, nil)
+			t, err := json.Marshal(btoken)
+			if err != nil {
+				log.Printf("Error: %s", err)
+				return
+			}
 
-		if err != nil {
-			log.Println(err)
-			return
+			// We store the bot token object as a reference
+			err = db.Put([]byte(fmt.Sprintf("bottoken:%s", botToken)), t, nil)
+
+			b, err := json.Marshal(user)
+			if err != nil {
+				log.Printf("Error: %s", err)
+				return
+			}
+
+			// We store the user object with the twitchID for reference
+			err = db.Put([]byte(fmt.Sprintf("user:%s", twitchID)), b, nil)
+
+			if err != nil {
+				log.Println(err)
+				return
+			}
 		}
 
 		c, err := json.Marshal(cookieModel)
@@ -216,6 +262,44 @@ func callback(w http.ResponseWriter, r *http.Request) {
 
 		http.SetCookie(w, &cookie)
 		http.Redirect(w, r, "/admin", 302)
+
+		return
+	} else {
+		http.Error(w, "Unexpected response from Twitch, please try again!", 500)
+		return
+	}
+}
+
+func botCallback(w http.ResponseWriter, r *http.Request) {
+	// For a bot callback we want to check the state and code, the state is our bot token
+	state, stateOk := r.URL.Query()["state"]
+	code, codeOk := r.URL.Query()["code"]
+	if stateOk && codeOk && len(state) > 0 && len(code) > 0 {
+		log.Printf("botCallback state: %s", state[0])
+		log.Printf("botCallback code: %s", code[0])
+
+		// TODO we can keep the client for the entire application?? No need to make a new one every time?
+		client, err := helix.NewClient(&helix.Options{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectURI:  redirectURL,
+		})
+
+		if err != nil {
+			http.Error(w, "Unexpected response from Twitch, please try again!", 500)
+			return
+		}
+
+		resp, err := client.GetUserAccessToken(code[0])
+		if err != nil {
+			http.Error(w, "Unexpected response from Twitch, please try again!", 500)
+			return
+		}
+
+		log.Printf("%+v\n", resp)
+
+		// TODO set up a client here which should post for the user
+		// TODO check if the user is "botbyuber" and if so then this should be the universal bot
 
 		return
 	} else {
@@ -257,8 +341,14 @@ func admin(w http.ResponseWriter, r *http.Request) {
 
 	log.Println(fmt.Sprintf("oauth:%s", userObj.AccessToken))
 
+	botURL := fmt.Sprintf("http://%s/bot/%s", r.Host, userObj.BotToken)
+	if strings.Contains(r.Host, "localhost") {
+		botURL = fmt.Sprintf("http://%s/bot/%s", r.Host, userObj.BotToken)
+	}
+
 	t := Template{
 		ModifiedHash: getModHash(filename),
+		BotUrl:       botURL,
 	}
 
 	tmpl := template.Must(template.ParseFiles(filename))

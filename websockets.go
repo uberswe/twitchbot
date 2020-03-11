@@ -27,6 +27,7 @@ type User struct {
 	Channel      Channel   `json:"channel,omitempty"`
 	State        State     `json:"state,omitempty"`
 	Connected    bool      `json:"connected,omitempty"`
+	BotToken     string    `json:"bot_token,omitempty"`
 }
 
 type Command struct {
@@ -64,11 +65,16 @@ type State struct {
 	Variables []Variable `json:"variables,omitempty"`
 }
 
+type BotToken struct {
+	Token    string
+	TwitchID string
+}
+
 func initWebsockets() {
 	// Configure the upgrader
 	upgrader = websocket.Upgrader{}
 
-	http.HandleFunc("/ws", handleConnections)
+	r.HandleFunc("/ws", handleConnections)
 	// Start listening for incoming chat messages
 	go handleMessages()
 }
