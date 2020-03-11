@@ -55,3 +55,10 @@ input[type="text"], textarea {
 .col-top-margin {
     margin-top: 50px;
 }
+
+.text-red-600 {
+    color: rgb(232, 86, 86);
+}
+.fill-current {
+     fill: currentcolor;
+}
