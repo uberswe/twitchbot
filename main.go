@@ -14,16 +14,19 @@ import (
 )
 
 var (
-	cookieName        = "botbyuber"
-	clients           = make(map[*websocket.Conn]bool) // connected clients
-	broadcast         = make(chan WebsocketMessage)    // broadcast channel
-	upgrader          websocket.Upgrader
-	db                *leveldb.DB
-	clientID          = "***REMOVED***"
-	clientSecret      = "***REMOVED***"
-	redirectURL       = "https://bots.uberswe.com/callback"
+	cookieName   = "botbyuber"
+	clients      = make(map[*websocket.Conn]bool) // connected websocket clients
+	broadcast    = make(chan WebsocketMessage)    // broadcast channel
+	upgrader     websocket.Upgrader
+	db           *leveldb.DB
+	clientID     = "***REMOVED***"
+	clientSecret = "***REMOVED***"
+	redirectURL  = "https://bots.uberswe.com/callback"
+	// The twitch IRC clients for users
 	clientConnections = make(map[string]*twitch.Client)
-	r                 *mux.Router
+	// The botbyuber bot and other custom bots that can write to channels
+	botConnections = make(map[string]*twitch.Client)
+	r              *mux.Router
 )
 
 // Define our message object
