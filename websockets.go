@@ -5,6 +5,7 @@ import (
 	"fmt"
 	twitch "github.com/gempir/go-twitch-irc/v2"
 	"github.com/gorilla/websocket"
+	"github.com/nicklaw5/helix"
 	"log"
 	"net/http"
 	"time"
@@ -16,18 +17,34 @@ type Cookie struct {
 }
 
 type User struct {
-	TwitchID     string    `json:"twitch_id,omitempty"`
-	Email        string    `json:"email,omitempty"`
-	AccessCode   string    `json:"access_code,omitempty"`
-	AccessToken  string    `json:"access_token,omitempty"`
-	RefreshToken string    `json:"refresh_token,omitempty"`
-	TokenExpiry  time.Time `json:"token_expiry,omitempty"`
-	Scopes       []string  `json:"scopes,omitempty"`
-	TokenType    string    `json:"token_type,omitempty"`
-	Channel      Channel   `json:"channel,omitempty"`
-	State        State     `json:"state,omitempty"`
-	Connected    bool      `json:"connected,omitempty"`
-	BotToken     string    `json:"bot_token,omitempty"`
+	TwitchID              string         `json:"twitch_id,omitempty"`
+	Email                 string         `json:"email,omitempty"`
+	AccessCode            string         `json:"access_code,omitempty"`
+	AccessToken           string         `json:"access_token,omitempty"`
+	RefreshToken          string         `json:"refresh_token,omitempty"`
+	TokenExpiry           time.Time      `json:"token_expiry,omitempty"`
+	Scopes                []string       `json:"scopes,omitempty"`
+	TokenType             string         `json:"token_type,omitempty"`
+	Channel               Channel        `json:"channel,omitempty"`
+	State                 State          `json:"state,omitempty"`
+	Connected             bool           `json:"connected,omitempty"`
+	BotToken              string         `json:"bot_token,omitempty"`
+	TwitchIRCClient       *twitch.Client `json:"-"`
+	TwitchOAuthClient     *helix.Client  `json:"-"`
+	TwitchConnectFailures int            `json:"twitch_connect_failures,omitempty"`
+}
+
+type Bot struct {
+	Name                  string         `json:"name,omitempty"`
+	UserChannelName       string         `json:"user_channel_name,omitempty"`
+	TwitchIRCClient       *twitch.Client `json:"-"`
+	TwitchOAuthClient     *helix.Client  `json:"-"`
+	TwitchConnectFailures int            `json:"twitch_connect_failures,omitempty"`
+	AccessCode            string         `json:"access_code,omitempty"`
+	AccessToken           string         `json:"access_token,omitempty"`
+	RefreshToken          string         `json:"refresh_token,omitempty"`
+	UserTwitchID          string         `json:"user_twitch_id,omitempty"`
+	TokenExpiry           time.Time      `json:"token_expiry,omitempty"`
 }
 
 type Command struct {
@@ -51,6 +68,8 @@ type WebsocketMessage struct {
 	PrivateMessage twitch.PrivateMessage `json:"private_message,omitempty"`
 	State          State                 `json:"state,omitempty"`
 	AlertType      string                `json:"alert_type,omitempty"`
+	BotName        string                `json:"bot_name,omitempty"`
+	TwitchID       string                `json:"-"`
 }
 
 type Variable struct {
@@ -70,6 +89,12 @@ type BotToken struct {
 	TwitchID string
 }
 
+// Short for WebsocketConnection
+type Wconn struct {
+	Connection *websocket.Conn
+	TwitchID   string
+}
+
 func initWebsockets() {
 	// Configure the upgrader
 	upgrader = websocket.Upgrader{}
@@ -84,16 +109,18 @@ func handleMessages() {
 		// Grab the next message from the broadcast channel
 		msg := <-broadcast
 		// Send it out to every client that is currently connected
-		for client := range clients {
-			err := client.WriteJSON(msg)
-			log.Println("Writing message to all clients")
-			if err != nil {
-				log.Printf("error: %v", err)
-				err := client.Close()
+		for i, client := range clients {
+			if client.TwitchID == msg.TwitchID {
+				err := client.Connection.WriteJSON(msg)
+				log.Printf("Writing message to %s client\n", msg.TwitchID)
 				if err != nil {
-					log.Println(err)
+					log.Printf("error: %v", err)
+					err := client.Connection.Close()
+					if err != nil {
+						log.Println(err)
+					}
+					clients = deleteClient(clients, i)
 				}
-				delete(clients, client)
 			}
 		}
 	}
@@ -102,7 +129,6 @@ func handleMessages() {
 func handleConnections(w http.ResponseWriter, r *http.Request) {
 	var user User
 	authenticated := false
-	//connecting := false
 
 	// Upgrade initial GET request to a websocket
 	ws, err := upgrader.Upgrade(w, r, nil)
@@ -111,8 +137,6 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	}
 	// Make sure we close the connection when the function returns
 	defer ws.Close()
-	// Register our new client
-	clients[ws] = true
 
 	cookie, err := r.Cookie(cookieName)
 	if err != nil {
@@ -121,22 +145,32 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		user, err = getUserFromCookie(cookie)
 		if err != nil {
 			log.Println(err)
-			delete(clients, ws)
 			return
 		} else {
 			authenticated = true
 			log.Println("Authenticated")
 			statemsg := WebsocketMessage{
-				Key:     "state",
-				Channel: user.Channel.Name,
-				State:   user.State,
+				Key:      "state",
+				Channel:  user.Channel.Name,
+				State:    user.State,
+				TwitchID: user.TwitchID,
 			}
+
+			clients = append(clients, Wconn{
+				Connection: ws,
+				TwitchID:   user.TwitchID,
+			})
 
 			err := ws.WriteJSON(statemsg)
 			if err != nil {
 				log.Printf("Error: %s", err)
-				delete(clients, ws)
-				return
+				index, err := getClientIndex(clients, user.TwitchID)
+				if err != nil {
+					log.Printf("Error: %s", err)
+				} else {
+					clients = deleteClient(clients, index)
+					return
+				}
 			}
 		}
 	}
@@ -145,29 +179,43 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		if !user.Connected {
 			log.Printf("Connect to channel %s: %s\n", user.AccessToken, user.Channel.Name)
 			log.Println("connectToTwitch")
-			client := connectToTwitch(user)
-
-			clientConnections[user.TwitchID] = client
+			user.TwitchIRCClient = connectToTwitch(user)
 
 			user.Connected = true
+
+			clientConnections[user.TwitchID] = user
+
 			err = user.store()
 			if err != nil {
 				log.Printf("Error: %s", err)
-				delete(clients, ws)
+				index, err := getClientIndex(clients, user.TwitchID)
+				if err != nil {
+					log.Printf("Error: %s", err)
+				} else {
+					clients = deleteClient(clients, index)
+					return
+				}
 				return
 			}
 			log.Println("Connect started")
 		} else if user.Connected {
 			log.Println("user already connected")
 			initmsg := WebsocketMessage{
-				Key:     "channel",
-				Channel: user.Channel.Name,
+				Key:      "channel",
+				Channel:  user.Channel.Name,
+				TwitchID: user.TwitchID,
 			}
 
 			err := ws.WriteJSON(initmsg)
 			if err != nil {
 				log.Printf("Error: %s", err)
-				delete(clients, ws)
+				index, err := getClientIndex(clients, user.TwitchID)
+				if err != nil {
+					log.Printf("Error: %s", err)
+				} else {
+					clients = deleteClient(clients, index)
+					return
+				}
 				return
 			}
 		} else {
@@ -181,7 +229,13 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		err := ws.ReadJSON(&msg)
 		if err != nil {
 			log.Printf("error: %v", err)
-			delete(clients, ws)
+			index, err := getClientIndex(clients, user.TwitchID)
+			if err != nil {
+				log.Printf("Error: %s", err)
+			} else {
+				clients = deleteClient(clients, index)
+				return
+			}
 			break
 		}
 		log.Printf("%s: %v\n", msg.Key, msg)
@@ -198,20 +252,33 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 
 				if err != nil {
 					log.Printf("error: %v", err)
-					delete(clients, ws)
+					index, err := getClientIndex(clients, user.TwitchID)
+					if err != nil {
+						log.Printf("Error: %s", err)
+					} else {
+						clients = deleteClient(clients, index)
+						return
+					}
 					break
 				}
 
 				statemsg := WebsocketMessage{
-					Key:     "state",
-					Channel: user.Channel.Name,
-					State:   user.State,
+					Key:      "state",
+					Channel:  user.Channel.Name,
+					State:    user.State,
+					TwitchID: user.TwitchID,
 				}
 
 				err := ws.WriteJSON(statemsg)
 				if err != nil {
 					log.Printf("Error: %s", err)
-					delete(clients, ws)
+					index, err := getClientIndex(clients, user.TwitchID)
+					if err != nil {
+						log.Printf("Error: %s", err)
+					} else {
+						clients = deleteClient(clients, index)
+						return
+					}
 					return
 				}
 
@@ -219,12 +286,19 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 					Key:       "alert",
 					Text:      "Command added successfully",
 					AlertType: "success",
+					TwitchID:  user.TwitchID,
 				}
 
 				err = ws.WriteJSON(alertmsg)
 				if err != nil {
 					log.Printf("Error: %s", err)
-					delete(clients, ws)
+					index, err := getClientIndex(clients, user.TwitchID)
+					if err != nil {
+						log.Printf("Error: %s", err)
+					} else {
+						clients = deleteClient(clients, index)
+						return
+					}
 					return
 				}
 			} else if msg.Key == "removecommand" {
@@ -239,20 +313,33 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 
 				if err != nil {
 					log.Printf("error: %v", err)
-					delete(clients, ws)
+					index, err := getClientIndex(clients, user.TwitchID)
+					if err != nil {
+						log.Printf("Error: %s", err)
+					} else {
+						clients = deleteClient(clients, index)
+						return
+					}
 					break
 				}
 
 				statemsg := WebsocketMessage{
-					Key:     "state",
-					Channel: user.Channel.Name,
-					State:   user.State,
+					Key:      "state",
+					Channel:  user.Channel.Name,
+					State:    user.State,
+					TwitchID: user.TwitchID,
 				}
 
 				err := ws.WriteJSON(statemsg)
 				if err != nil {
 					log.Printf("Error: %s", err)
-					delete(clients, ws)
+					index, err := getClientIndex(clients, user.TwitchID)
+					if err != nil {
+						log.Printf("Error: %s", err)
+					} else {
+						clients = deleteClient(clients, index)
+						return
+					}
 					return
 				}
 
@@ -260,12 +347,19 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 					Key:       "alert",
 					Text:      "Command removed successfully",
 					AlertType: "success",
+					TwitchID:  user.TwitchID,
 				}
 
 				err = ws.WriteJSON(alertmsg)
 				if err != nil {
 					log.Printf("Error: %s", err)
-					delete(clients, ws)
+					index, err := getClientIndex(clients, user.TwitchID)
+					if err != nil {
+						log.Printf("Error: %s", err)
+					} else {
+						clients = deleteClient(clients, index)
+						return
+					}
 					return
 				}
 			} else {
@@ -290,10 +384,14 @@ func getUserFromCookie(cookie *http.Cookie) (User, error) {
 func getUserFromTwitchID(twitchID string) (User, error) {
 	var user User
 	data, err := db.Get([]byte(fmt.Sprintf("user:%s", twitchID)), nil)
+	if err != nil {
+		log.Println(err)
+		return user, err
+	}
 	err = json.Unmarshal(data, &user)
 	if err != nil {
 		log.Println(err)
-		return user, nil
+		return user, err
 	}
 	return user, nil
 }
@@ -325,17 +423,4 @@ func (u *User) removeCommand(command Command) bool {
 		}
 	}
 	return false
-}
-
-func deleteCommand(arr []Command, index int) []Command {
-	if index < 0 || index >= len(arr) {
-		return arr
-	}
-
-	for i := index; i < len(arr)-1; i++ {
-		arr[i] = arr[i+1]
-
-	}
-
-	return arr[:len(arr)-1]
 }

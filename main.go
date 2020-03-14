@@ -1,7 +1,6 @@
 package botsbyuberswe
 
 import (
-	"github.com/gempir/go-twitch-irc/v2"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -15,18 +14,20 @@ import (
 
 var (
 	cookieName   = "botbyuber"
-	clients      = make(map[*websocket.Conn]bool) // connected websocket clients
-	broadcast    = make(chan WebsocketMessage)    // broadcast channel
+	clients      []Wconn                       // connected websocket clients
+	broadcast    = make(chan WebsocketMessage) // broadcast channel
+	universalBot = make(chan ConnectChannel)   // broadcast channel
 	upgrader     websocket.Upgrader
 	db           *leveldb.DB
 	clientID     = "***REMOVED***"
 	clientSecret = "***REMOVED***"
 	redirectURL  = "https://bots.uberswe.com/callback"
 	// The twitch IRC clients for users
-	clientConnections = make(map[string]*twitch.Client)
+	clientConnections = make(map[string]User)
 	// The botbyuber bot and other custom bots that can write to channels
-	botConnections = make(map[string]*twitch.Client)
-	r              *mux.Router
+	botConnections       = make(map[string]Bot)
+	r                    *mux.Router
+	universalBotTwitchID = ""
 )
 
 // Define our message object
@@ -34,6 +35,11 @@ var (
 type Template struct {
 	ModifiedHash string
 	BotUrl       string
+}
+
+type ConnectChannel struct {
+	Name    string
+	Connect bool
 }
 
 type HashRequest struct {
@@ -70,7 +76,7 @@ func Run() {
 	r = mux.NewRouter()
 
 	// Websockets
-
+	// starts it's own thread for websocket connections
 	initWebsockets()
 
 	// Routes
@@ -80,8 +86,11 @@ func Run() {
 	// Refresh tokens every 10 min
 	go refreshHandler()
 
-	// Connect to twitch channels every 5 seconds
+	// Connect to twitch channels
 	go twitchIRCHandler()
+
+	// Connect to needed channels with the main IRC bot botbyuber
+	go handleMainBotConnects()
 
 	log.Println("Listening on port 8010")
 	srv := &http.Server{
