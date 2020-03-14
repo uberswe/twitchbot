@@ -13,6 +13,31 @@ import (
 )
 
 func twitchIRCHandler() {
+	// Iterate and connect bots
+	BotIter := db.NewIterator(util.BytesPrefix([]byte("bot:")), nil)
+	for BotIter.Next() {
+		var bot Bot
+		err := json.Unmarshal(BotIter.Value(), &bot)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
+		if _, ok := botConnections[bot.UserTwitchID]; !ok {
+			if bot.Name == "botbyuber" {
+				log.Printf("Universal bot id found: %s\n", bot.UserTwitchID)
+				universalBotTwitchID = bot.UserTwitchID
+			}
+			bot.TwitchIRCClient = connectBotToTwitch(bot)
+			botConnections[bot.UserTwitchID] = bot
+		}
+	}
+	BotIter.Release()
+	err := BotIter.Error()
+	if err != nil {
+		log.Println(err)
+	}
+	// Iterate and connect users
 	iter := db.NewIterator(util.BytesPrefix([]byte("user:")), nil)
 	for iter.Next() {
 		var user User
@@ -23,7 +48,8 @@ func twitchIRCHandler() {
 		}
 
 		if _, ok := clientConnections[user.TwitchID]; !ok {
-			clientConnections[user.TwitchID] = connectToTwitch(user)
+			user.TwitchIRCClient = connectToTwitch(user)
+			clientConnections[user.TwitchID] = user
 			user.Connected = true
 			b, err := json.Marshal(user)
 			if err != nil {
@@ -41,12 +67,10 @@ func twitchIRCHandler() {
 		}
 	}
 	iter.Release()
-	err := iter.Error()
+	err = iter.Error()
 	if err != nil {
 		log.Println(err)
 	}
-	// Sleep for 10 minutes
-	time.Sleep(5 * time.Second)
 }
 
 // refreshHandler refreshes tokens every 10 minutes if needed
@@ -56,8 +80,7 @@ func refreshHandler() {
 		iter := db.NewIterator(util.BytesPrefix([]byte("user:")), nil)
 		for iter.Next() {
 			// Use key/value.
-			log.Println(string(iter.Key()))
-			log.Println(string(iter.Value()))
+			log.Printf("Refreshing tokens of user %s: %s\n", string(iter.Key()), string(iter.Value()))
 			var user User
 			err := json.Unmarshal(iter.Value(), &user)
 			if err != nil {
@@ -111,13 +134,72 @@ func refreshHandler() {
 		if err != nil {
 			log.Println(err)
 		}
+		// Renew bot tokens
+
+		// After 10 minutes we try to refresh our tokens
+		botIter := db.NewIterator(util.BytesPrefix([]byte("bot:")), nil)
+		for botIter.Next() {
+			log.Printf("Refreshing tokens of bot %s: %s\n", string(botIter.Key()), string(botIter.Value()))
+
+			var bot Bot
+			err := json.Unmarshal(botIter.Value(), &bot)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+
+			// if user token expires in the next 10 min
+			if bot.TokenExpiry.Before(time.Now().Add(2 * time.Hour)) {
+				log.Printf("Refreshing tokens for bot: %s\n", bot.UserTwitchID)
+				client, err := helix.NewClient(&helix.Options{
+					ClientID:     clientID,
+					ClientSecret: clientSecret,
+					RedirectURI:  redirectURL,
+				})
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				refreshResponse, err := client.RefreshUserAccessToken(bot.RefreshToken)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				bot.RefreshToken = refreshResponse.Data.RefreshToken
+				bot.AccessToken = refreshResponse.Data.AccessToken
+
+				tokenExpiry := time.Now().Add(time.Duration(refreshResponse.Data.ExpiresIn) * time.Second)
+
+				log.Printf("Bot Refreshed: New tokens should refresh at %s", tokenExpiry.String())
+
+				bot.TokenExpiry = tokenExpiry
+
+				b, err := json.Marshal(bot)
+				if err != nil {
+					log.Printf("Error: %s", err)
+					return
+				}
+
+				// We store the user object with the twitchID for reference
+				err = db.Put([]byte(fmt.Sprintf("bot:%s", bot.UserTwitchID)), b, nil)
+
+				if err != nil {
+					log.Println(err)
+					return
+				}
+			}
+		}
+		botIter.Release()
+		err = botIter.Error()
+		if err != nil {
+			log.Println(err)
+		}
 		// Sleep for 10 minutes
 		time.Sleep(10 * time.Minute)
 	}
 }
 
 func reconnectHandler(user User) {
-	var updatedUser User
 
 	log.Printf("Reconnecting to Twitch %s\n", user.TwitchID)
 
@@ -125,49 +207,79 @@ func reconnectHandler(user User) {
 
 	if err != nil {
 		log.Println(err)
+		return
 	}
 
-	err = json.Unmarshal(data, &updatedUser)
+	err = json.Unmarshal(data, &user)
 
 	if err != nil {
 		log.Println(err)
+		return
 	}
 
-	updatedUser.Connected = false
+	user.Connected = false
 
-	client := connectToTwitch(updatedUser)
+	user.TwitchIRCClient = connectToTwitch(user)
 
-	clientConnections[user.TwitchID] = client
+	user.Connected = true
+	user.TwitchConnectFailures++
 
-	b, err := json.Marshal(updatedUser)
+	clientConnections[user.TwitchID] = user
+
+	b, err := json.Marshal(user)
 	if err != nil {
 		log.Printf("Error: %s", err)
 		return
 	}
-	updatedUser.Connected = true
-	db.Put([]byte(fmt.Sprintf("user:%s", updatedUser.TwitchID)), b, nil)
+	db.Put([]byte(fmt.Sprintf("user:%s", user.TwitchID)), b, nil)
 
 	log.Println("Connect started for reconnect")
 }
 
-func connectToTwitch(user User) *twitch.Client {
-	log.Println("creating twitch client")
-	client := twitch.NewClient(user.Channel.Name, fmt.Sprintf("oauth:%s", user.AccessToken))
+func reconnectBotHandler(bot Bot) {
 
-	log.Println("configuring twitch client")
+	data, err := db.Get([]byte(fmt.Sprintf("bot:%s", bot.UserTwitchID)), nil)
+
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	err = json.Unmarshal(data, &bot)
+
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	log.Printf("Reconnecting bot to Twitch %s\n", bot.UserTwitchID)
+
+	bot.TwitchIRCClient = connectBotToTwitch(bot)
+
+	botConnections[bot.UserTwitchID] = bot
+
+}
+
+func connectBotToTwitch(bot Bot) *twitch.Client {
+	log.Println("creating twitch client")
+	client := twitch.NewClient(bot.Name, fmt.Sprintf("oauth:%s", bot.AccessToken))
+
+	log.Println("configuring twitch bot client")
 	client.OnConnect(func() {
-		log.Println("Client connected")
+		log.Println("Client bot connected")
 
 		initmsg := WebsocketMessage{
-			Key:     "channel",
-			Channel: user.Channel.Name,
+			Key:      "channel",
+			Channel:  bot.UserChannelName,
+			BotName:  bot.Name,
+			TwitchID: bot.UserTwitchID,
 		}
 
 		broadcast <- initmsg
 	})
 
 	client.OnPingMessage(func(message twitch.PingMessage) {
-		log.Printf("Ping received: %s\n", message.Message)
+		log.Printf("Bot Ping received: %s\n", message.Message)
 	})
 
 	client.OnPrivateMessage(func(message twitch.PrivateMessage) {
@@ -184,18 +296,107 @@ func connectToTwitch(user User) *twitch.Client {
 
 		for _, note := range n {
 			if note.Start == 0 {
-				go handleCommand(string(note.Val), message)
+				go handleCommand(bot, message.Message, client)
 			}
 		}
 
 		initmsg := WebsocketMessage{
 			Key:            "notice",
 			PrivateMessage: message,
+			TwitchID:       bot.UserTwitchID,
 		}
 
 		broadcast <- initmsg
 	})
 
+	client.Join(bot.UserChannelName)
+
+	if bot.UserTwitchID == universalBotTwitchID {
+		// loop through all users that don't have their own bot and connect to their channels if this is universal bot
+		iter := db.NewIterator(util.BytesPrefix([]byte("user:")), nil)
+		for iter.Next() {
+			var user User
+			err := json.Unmarshal(iter.Value(), &user)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			if _, ok := botConnections[user.TwitchID]; !ok {
+				connect := ConnectChannel{
+					Name:    user.Channel.Name,
+					Connect: true,
+				}
+				universalBot <- connect
+			}
+		}
+		iter.Release()
+		err := iter.Error()
+		if err != nil {
+			log.Println(err)
+		}
+	} else {
+		// if this is not the universal bot then remove this user from the universal bot
+		connect := ConnectChannel{
+			Name:    bot.UserChannelName,
+			Connect: false,
+		}
+		universalBot <- connect
+	}
+
+	go func() {
+		err := client.Connect()
+		if err != nil {
+			log.Println(err)
+			time.Sleep(10 * time.Second)
+			reconnectBotHandler(bot)
+		}
+	}()
+
+	return client
+}
+
+func handleMainBotConnects() {
+	for {
+		// Grab the next message from the broadcast channel
+		connect := <-universalBot
+
+		if universalBotTwitchID != "" {
+			_, ok := botConnections[universalBotTwitchID]
+			if ok {
+				if connect.Connect {
+					log.Printf("Universal bot %s is joining %s\n", universalBotTwitchID, connect.Name)
+					botConnections[universalBotTwitchID].TwitchIRCClient.Join(connect.Name)
+				} else {
+					log.Printf("Universal bot %s is leaving %s\n", universalBotTwitchID, connect.Name)
+					botConnections[universalBotTwitchID].TwitchIRCClient.Depart(connect.Name)
+				}
+			}
+		}
+	}
+}
+
+func connectToTwitch(user User) *twitch.Client {
+	log.Println("creating twitch client")
+	client := twitch.NewClient(user.Channel.Name, fmt.Sprintf("oauth:%s", user.AccessToken))
+
+	log.Println("configuring twitch client")
+	client.OnConnect(func() {
+		log.Println("Client connected")
+
+		initmsg := WebsocketMessage{
+			Key:      "channel",
+			Channel:  user.Channel.Name,
+			TwitchID: user.TwitchID,
+		}
+
+		broadcast <- initmsg
+	})
+
+	client.OnPingMessage(func(message twitch.PingMessage) {
+		log.Printf("Ping received: %s\n", message.Message)
+	})
+
+	// Ths user listens to notices and the bot listens to commands
 	client.OnUserNoticeMessage(func(message twitch.UserNoticeMessage) {
 		jsonString, err := json.Marshal(message.MsgParams)
 
@@ -224,6 +425,7 @@ func connectToTwitch(user User) *twitch.Client {
 		initmsg := WebsocketMessage{
 			Key:       "notice",
 			MsgParams: message.MsgParams,
+			TwitchID:  user.TwitchID,
 		}
 
 		broadcast <- initmsg
@@ -245,6 +447,26 @@ func connectToTwitch(user User) *twitch.Client {
 	return client
 }
 
-func handleCommand(command string, message twitch.PrivateMessage) {
+func handleCommand(bot Bot, command string, client *twitch.Client) {
+	data, err := db.Get([]byte(fmt.Sprintf("user:%s", bot.UserTwitchID)), nil)
+
+	if err != nil {
+		log.Println(err)
+	}
+
+	var user User
+	err = json.Unmarshal(data, &user)
+
+	if err != nil {
+		log.Println(err)
+	}
+
 	log.Printf("Command detected: %s\n", command)
+	for _, c := range user.State.Commands {
+		if c.Input == command {
+			// TODO replace variables in output
+			client.Say(user.Channel.Name, c.Output)
+			log.Printf("Bot responded to %s in channel %s: %s\n", command, user.Channel.Name, c.Output)
+		}
+	}
 }

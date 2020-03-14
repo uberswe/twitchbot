@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/nicklaw5/helix"
+	"github.com/syndtr/goleveldb/leveldb/util"
 	"html/template"
 	"io/ioutil"
 	"log"
@@ -157,7 +158,7 @@ func callback(w http.ResponseWriter, r *http.Request) {
 
 		for _, user := range userResponse.Data.Users {
 			log.Printf("%+v\n", user)
-			channelName = user.DisplayName
+			channelName = user.Login
 			twitchID = user.ID
 			email = user.Email
 		}
@@ -301,8 +302,83 @@ func botCallback(w http.ResponseWriter, r *http.Request) {
 
 		log.Printf("%+v\n", resp)
 
-		// TODO set up a client here which should post for the user
-		// TODO check if the user is "botbyuber" and if so then this should be the universal bot
+		client.SetUserAccessToken(resp.Data.AccessToken)
+
+		userResponse, err := client.GetUsers(&helix.UsersParams{})
+
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		channelName := ""
+
+		for _, u := range userResponse.Data.Users {
+			log.Printf("%+v\n", u)
+			channelName = u.Login
+		}
+
+		iter := db.NewIterator(util.BytesPrefix([]byte("user:")), nil)
+		for iter.Next() {
+			// Use key/value.
+			log.Println(string(iter.Key()))
+			log.Println(string(iter.Value()))
+			var user User
+			err := json.Unmarshal(iter.Value(), &user)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+
+			if user.BotToken == state[0] {
+
+				data2, err := db.Get([]byte(fmt.Sprintf("bot:%s", user.TwitchID)), nil)
+
+				if err != nil {
+					tokenExpiry := time.Now().Add(time.Duration(resp.Data.ExpiresIn) * time.Second)
+
+					if channelName == "botbyuber" {
+						log.Printf("Universal bot id found: %s\n", user.TwitchID)
+						universalBotTwitchID = user.TwitchID
+					}
+
+					bot := Bot{
+						Name:            channelName,
+						UserTwitchID:    user.TwitchID,
+						TokenExpiry:     tokenExpiry,
+						AccessToken:     resp.Data.AccessToken,
+						RefreshToken:    resp.Data.RefreshToken,
+						UserChannelName: user.Channel.Name,
+					}
+
+					bot.TwitchIRCClient = connectBotToTwitch(bot)
+
+					botConnections[bot.UserTwitchID] = bot
+
+					b, err := json.Marshal(bot)
+					if err != nil {
+						log.Printf("Error: %s", err)
+						return
+					}
+
+					// We store the user object with the twitchID for reference
+					err = db.Put([]byte(fmt.Sprintf("bot:%s", user.TwitchID)), b, nil)
+
+					if err != nil {
+						log.Println(err)
+						return
+					}
+				} else {
+					var bot Bot
+
+					err = json.Unmarshal(data2, &bot)
+					if err != nil {
+						log.Println(err)
+					}
+				}
+
+			}
+		}
 		return
 	} else {
 		http.Error(w, "Unexpected response from Twitch, please try again!", 500)
