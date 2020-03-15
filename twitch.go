@@ -436,6 +436,11 @@ func connectToTwitch(user User) *twitch.Client {
 		broadcast <- initmsg
 	})
 
+	client.OnPrivateMessage(func(message twitch.PrivateMessage) {
+
+		log.Println(fmt.Sprintf("New message detected: [%s] %s", message.Channel, message.Message))
+	})
+
 	client.Join(user.Channel.Name)
 
 	go func() {
