@@ -3,6 +3,7 @@ package botsbyuberswe
 import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+	"github.com/joho/godotenv"
 	"github.com/syndtr/goleveldb/leveldb"
 	"io"
 	"log"
@@ -13,15 +14,17 @@ import (
 )
 
 var (
-	cookieName   = "botbyuber"
-	clients      []Wconn                       // connected websocket clients
-	broadcast    = make(chan WebsocketMessage) // broadcast channel
-	universalBot = make(chan ConnectChannel)   // broadcast channel
-	upgrader     websocket.Upgrader
-	db           *leveldb.DB
-	clientID     = "***REMOVED***"
-	clientSecret = "***REMOVED***"
-	redirectURL  = "https://bots.uberswe.com/callback"
+	cookieName     = "botbyuber"
+	defaultBot     = "botbyuber"
+	clients        []Wconn                       // connected websocket clients
+	broadcast      = make(chan WebsocketMessage) // broadcast channel
+	universalBot   = make(chan ConnectChannel)   // broadcast channel
+	upgrader       websocket.Upgrader
+	db             *leveldb.DB
+	clientID       string
+	clientSecret   string
+	redirectURL    = "/callback"
+	botRedirectURL = "/bot/callback"
 	// The twitch IRC clients for users
 	clientConnections = make(map[string]User)
 	// The botbyuber bot and other custom bots that can write to channels
@@ -52,8 +55,16 @@ func Init() {
 }
 
 func Run() {
+	// Load environmental variables
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
 
-	var err error
+	clientID = os.Getenv("CLIENT_ID")
+	clientSecret = os.Getenv("CLIENT_SECRET")
+	cookieName = os.Getenv("COOKIE_NAME")
+	defaultBot = os.Getenv("UNIVERSAL_BOT")
 
 	// Log handling
 	f, err := os.OpenFile("uberswe.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)

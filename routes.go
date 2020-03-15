@@ -25,6 +25,7 @@ func routes() {
 
 	r.HandleFunc("/callback", callback)
 
+	// TODO redirect index if not authenticated
 	r.HandleFunc("/admin", admin)
 
 	r.HandleFunc("/login", login)
@@ -41,12 +42,12 @@ func addBot(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	log.Printf("Key: %v\n", vars["key"])
 	scopes := "chat:read channel:moderate chat:edit whispers:read whispers:edit"
-	redirectURL = fmt.Sprintf("https://%s/bot/callback", r.Host)
+	rURL := fmt.Sprintf("https://%s%s", r.Host, botRedirectURL)
 	if strings.Contains(r.Host, "localhost") {
-		redirectURL = fmt.Sprintf("http://%s/bot/callback", r.Host)
+		rURL = fmt.Sprintf("http://%s%s", r.Host, botRedirectURL)
 	}
 	responseType := "code"
-	http.Redirect(w, r, fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?client_id=%s&redirect_uri=%s&response_type=%s&scope=%s&force_verify=%s&state=%s", clientID, redirectURL, responseType, scopes, "true", vars["key"]), 302)
+	http.Redirect(w, r, fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?client_id=%s&redirect_uri=%s&response_type=%s&scope=%s&force_verify=%s&state=%s", clientID, rURL, responseType, scopes, "true", vars["key"]), 302)
 	return
 }
 
@@ -337,7 +338,7 @@ func botCallback(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					tokenExpiry := time.Now().Add(time.Duration(resp.Data.ExpiresIn) * time.Second)
 
-					if channelName == "botbyuber" {
+					if channelName == defaultBot {
 						log.Printf("Universal bot id found: %s\n", user.TwitchID)
 						universalBotTwitchID = user.TwitchID
 					}
@@ -443,13 +444,13 @@ func admin(w http.ResponseWriter, r *http.Request) {
 
 func login(w http.ResponseWriter, r *http.Request) {
 	scopes := "chat:read user:read:broadcast bits:read channel:read:subscriptions analytics:read:games analytics:read:extensions"
-	redirectURL = fmt.Sprintf("https://%s/callback", r.Host)
+	rURL := fmt.Sprintf("https://%s%s", r.Host, redirectURL)
 	if strings.Contains(r.Host, "localhost") {
-		redirectURL = fmt.Sprintf("http://%s/callback", r.Host)
+		rURL = fmt.Sprintf("http://%s%s", r.Host, redirectURL)
 	}
 	responseType := "code"
 	// TODO set the state to a CSRF token and verify
-	http.Redirect(w, r, fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?client_id=%s&redirect_uri=%s&response_type=%s&scope=%s&force_verify=%s&state=%s", clientID, redirectURL, responseType, scopes, "true", "uberstate"), 302)
+	http.Redirect(w, r, fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?client_id=%s&redirect_uri=%s&response_type=%s&scope=%s&force_verify=%s&state=%s", clientID, rURL, responseType, scopes, "true", "uberstate"), 302)
 	return
 
 }

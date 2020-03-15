@@ -1,3 +1,4 @@
 .idea
 /uberswe.db/
 *.log
+.env

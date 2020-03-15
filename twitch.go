@@ -25,7 +25,7 @@ func twitchIRCHandler() {
 		}
 
 		if _, ok := botConnections[bot.UserTwitchID]; !ok {
-			if bot.Name == "botbyuber" {
+			if bot.Name == defaultBot {
 				log.Printf("Universal bot id found: %s\n", bot.UserTwitchID)
 				universalBotTwitchID = bot.UserTwitchID
 			}
