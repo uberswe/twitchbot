@@ -25,9 +25,10 @@ var (
 	// The twitch IRC clients for users
 	clientConnections = make(map[string]User)
 	// The botbyuber bot and other custom bots that can write to channels
-	botConnections       = make(map[string]Bot)
-	r                    *mux.Router
-	universalBotTwitchID = ""
+	botConnections             = make(map[string]Bot)
+	r                          *mux.Router
+	universalBotTwitchID       = ""
+	universalConnectedChannels []string
 )
 
 // Define our message object
