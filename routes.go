@@ -382,6 +382,15 @@ func botCallback(w http.ResponseWriter, r *http.Request) {
 
 			}
 		}
+
+		filename := "assets/html/success.html"
+
+		t := Template{
+			ModifiedHash: getModHash(filename),
+		}
+
+		tmpl := template.Must(template.ParseFiles(filename))
+		err = tmpl.Execute(w, t)
 		return
 	} else {
 		http.Error(w, "Unexpected response from Twitch, please try again!", 500)
