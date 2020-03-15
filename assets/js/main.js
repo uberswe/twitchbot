@@ -18,7 +18,11 @@ ws.addEventListener ('message', function (e) {
     if (msg.key === "message" | msg.key === "notice") {
         messageReceive (msg.private_message);
     } else if (msg.key === "channel") {
-        channelReceive (msg.channel);
+        if (msg.bot_name !== undefined) {
+            channelBotReceive (msg.channel, msg.bot_name);
+        } else {
+            channelReceive (msg.channel);
+        }
     } else if (msg.key === "endchannel") {
         channelEndReceive (msg.value);
     } else if (msg.key === "addcommand") {
@@ -90,6 +94,10 @@ function messageReceive(obj) {
 
 function channelReceive(message) {
     receiveMessage ("Connected to channel " + message, 'channel')
+}
+
+function channelBotReceive(message, botName) {
+    receiveMessage (botName + " connected to channel " + message, 'channel')
 }
 
 function channelEndReceive(message) {

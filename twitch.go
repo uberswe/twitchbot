@@ -9,6 +9,7 @@ import (
 	"github.com/nicklaw5/helix"
 	"github.com/syndtr/goleveldb/leveldb/util"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -452,6 +453,7 @@ func handleCommand(bot Bot, command string, client *twitch.Client) {
 
 	if err != nil {
 		log.Println(err)
+		return
 	}
 
 	var user User
@@ -459,14 +461,61 @@ func handleCommand(bot Bot, command string, client *twitch.Client) {
 
 	if err != nil {
 		log.Println(err)
+		return
 	}
 
 	log.Printf("Command detected: %s\n", command)
 	for _, c := range user.State.Commands {
-		if c.Input == command {
-			// TODO replace variables in output
-			client.Say(user.Channel.Name, c.Output)
-			log.Printf("Bot responded to %s in channel %s: %s\n", command, user.Channel.Name, c.Output)
+
+		variables := anno.FieldFunc("variable", func(s []byte) (bool, []byte) {
+			return bytes.HasPrefix(s, []byte("{")) && bytes.HasSuffix(s, []byte("}")), s
+		})
+		pieces := strings.Fields(command)
+		inputPieces := strings.Fields(c.Input)
+
+		if len(pieces) > 0 && pieces[0] == inputPieces[0] && len(pieces) == len(inputPieces) {
+			inputVariables, err := anno.FindManyString(c.Input, variables)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
+			outputVariables, err := anno.FindManyString(c.Output, variables)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
+			output := c.Output
+
+			for index, inputNote := range inputVariables {
+				log.Printf("Found a %s at position %d: \"%s\"\n", inputNote.Kind, inputNote.Start, inputNote.Val)
+				log.Printf("Length of pieces is %d greater than index %d\n", len(pieces), index+1)
+				if len(pieces) > (index + 1) {
+					if string(inputNote.Val) == "{user}" {
+						log.Printf("Replacing {user} \"%s\" in \"%s\" with \"%s\"\n", string(inputNote.Val), output, strings.Trim(pieces[index+1], "@"))
+						output = strings.Replace(output, string(inputNote.Val), strings.Trim(pieces[index+1], "@"), -1)
+					} else {
+						log.Printf("Replacing \"%s\" in \"%s\" with \"%s\"\n", string(inputNote.Val), output, pieces[index+1])
+						output = strings.Replace(output, string(inputNote.Val), pieces[index+1], -1)
+					}
+				}
+			}
+
+			for _, outputNote := range outputVariables {
+				log.Printf("Found a %s at position %d: \"%s\"\n", outputNote.Kind, outputNote.Start, outputNote.Val)
+
+				for _, variable := range user.State.Variables {
+					if len(variable.Value) > 0 && variable.Name == strings.Trim(strings.Trim(string(outputNote.Val), "{"), "}") {
+						log.Printf("Replacing \"%s\" in \"%s\" with \"%s\"\n", string(outputNote.Val), output, variable.Value)
+						output = strings.Replace(output, string(outputNote.Val), variable.Value, -1)
+					}
+				}
+
+			}
+
+			client.Say(user.Channel.Name, output)
+			log.Printf("Bot responded to %s in channel %s: %s\n", command, user.Channel.Name, output)
 		}
 	}
 }
