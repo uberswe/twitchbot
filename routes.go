@@ -97,17 +97,13 @@ func loadTemplateFile(file string, w http.ResponseWriter) {
 }
 
 func index(w http.ResponseWriter, r *http.Request) {
-	redirectURL = fmt.Sprintf("https://%s/callback", r.Host)
-	if strings.Contains(r.Host, "localhost") {
-		redirectURL = fmt.Sprintf("http://%s/callback", r.Host)
-	}
 	loadTemplateFile("assets/html/index.html", w)
 }
 
 func callback(w http.ResponseWriter, r *http.Request) {
-	redirectURL = fmt.Sprintf("https://%s/callback", r.Host)
+	rURL := fmt.Sprintf("https://%s%s", r.Host, redirectURL)
 	if strings.Contains(r.Host, "localhost") {
-		redirectURL = fmt.Sprintf("http://%s/callback", r.Host)
+		rURL = fmt.Sprintf("http://%s%s", r.Host, redirectURL)
 	}
 
 	// The following is an example of the callback request
@@ -118,7 +114,7 @@ func callback(w http.ResponseWriter, r *http.Request) {
 		client, err := helix.NewClient(&helix.Options{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			RedirectURI:  redirectURL,
+			RedirectURI:  rURL,
 		})
 
 		if err != nil {
@@ -276,6 +272,10 @@ func callback(w http.ResponseWriter, r *http.Request) {
 }
 
 func botCallback(w http.ResponseWriter, r *http.Request) {
+	rURL := fmt.Sprintf("https://%s%s", r.Host, botRedirectURL)
+	if strings.Contains(r.Host, "localhost") {
+		rURL = fmt.Sprintf("http://%s%s", r.Host, botRedirectURL)
+	}
 	// For a bot callback we want to check the state and code, the state is our bot token
 	state, stateOk := r.URL.Query()["state"]
 	code, codeOk := r.URL.Query()["code"]
@@ -287,7 +287,7 @@ func botCallback(w http.ResponseWriter, r *http.Request) {
 		client, err := helix.NewClient(&helix.Options{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			RedirectURI:  redirectURL,
+			RedirectURI:  rURL,
 		})
 
 		if err != nil {
@@ -399,11 +399,6 @@ func botCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func admin(w http.ResponseWriter, r *http.Request) {
-	redirectURL = fmt.Sprintf("https://%s/callback", r.Host)
-	if strings.Contains(r.Host, "localhost") {
-		redirectURL = fmt.Sprintf("http://%s/callback", r.Host)
-	}
-
 	filename := "assets/html/admin.html"
 	cookie, err := r.Cookie(cookieName)
 	if err != nil {
@@ -439,6 +434,8 @@ func admin(w http.ResponseWriter, r *http.Request) {
 	t := Template{
 		ModifiedHash: getModHash(filename),
 		BotUrl:       botURL,
+		BotName:      getBotName(userObj),
+		BotConnected: isBotConnected(userObj),
 	}
 
 	tmpl := template.Must(template.ParseFiles(filename))
@@ -449,6 +446,26 @@ func admin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+}
+
+func getBotName(user User) string {
+	bot, ok := botConnections[user.TwitchID]
+	if !ok {
+		bot2, ok2 := botConnections[universalBotTwitchID]
+		if !ok2 {
+			return ""
+		}
+		return bot2.Name
+	}
+	return bot.Name
+}
+
+func isBotConnected(user User) bool {
+	_, ok := botConnections[user.TwitchID]
+	if !ok {
+		return false
+	}
+	return true
 }
 
 func login(w http.ResponseWriter, r *http.Request) {

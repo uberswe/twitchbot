@@ -39,6 +39,8 @@ var (
 type Template struct {
 	ModifiedHash string
 	BotUrl       string
+	BotName      string
+	BotConnected bool
 }
 
 type ConnectChannel struct {

@@ -410,6 +410,95 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 					}
 					return
 				}
+
+			} else if msg.Key == "disconnectbot" {
+				if _, ok := botConnections[user.TwitchID]; ok {
+					err = botConnections[user.TwitchID].TwitchIRCClient.Disconnect()
+					if err != nil {
+						log.Printf("Error: %s", err)
+					}
+					err = db.Delete([]byte(fmt.Sprintf("bot:%s", user.TwitchID)), nil)
+					if err != nil {
+						log.Printf("Error: %s", err)
+					}
+					delete(botConnections, user.TwitchID)
+				}
+
+				alertmsg := WebsocketMessage{
+					Key:       "alert",
+					Text:      "Bot disconnected",
+					AlertType: "success",
+					TwitchID:  user.TwitchID,
+				}
+
+				err = ws.WriteJSON(alertmsg)
+				if err != nil {
+					log.Printf("Error: %s", err)
+					index, err := getClientIndex(clients, user.TwitchID)
+					if err != nil {
+						log.Printf("Error: %s", err)
+					} else {
+						clients = deleteClient(clients, index)
+						return
+					}
+					return
+				}
+				disconnectMsg := WebsocketMessage{
+					Key:      "botdisconnected",
+					TwitchID: user.TwitchID,
+				}
+
+				err = ws.WriteJSON(disconnectMsg)
+				if err != nil {
+					log.Printf("Error: %s", err)
+					index, err := getClientIndex(clients, user.TwitchID)
+					if err != nil {
+						log.Printf("Error: %s", err)
+					} else {
+						clients = deleteClient(clients, index)
+						return
+					}
+					return
+				}
+			} else if msg.Key == "logout" {
+				if _, ok := clientConnections[user.TwitchID]; ok {
+					err = clientConnections[user.TwitchID].TwitchIRCClient.Disconnect()
+					if err != nil {
+						log.Printf("Error: %s", err)
+					}
+					err = db.Delete([]byte(fmt.Sprintf("user:%s", user.TwitchID)), nil)
+					if err != nil {
+						log.Printf("Error: %s", err)
+					}
+					delete(clientConnections, user.TwitchID)
+				}
+				if _, ok := botConnections[user.TwitchID]; ok {
+					err = botConnections[user.TwitchID].TwitchIRCClient.Disconnect()
+					if err != nil {
+						log.Printf("Error: %s", err)
+					}
+					err = db.Delete([]byte(fmt.Sprintf("bot:%s", user.TwitchID)), nil)
+					if err != nil {
+						log.Printf("Error: %s", err)
+					}
+					delete(botConnections, user.TwitchID)
+				}
+
+				logoutMsg := WebsocketMessage{
+					Key:      "logout",
+					TwitchID: user.TwitchID,
+				}
+
+				_ = ws.WriteJSON(logoutMsg)
+				log.Printf("Logging out %s\n", user.TwitchID)
+				index, err := getClientIndex(clients, user.TwitchID)
+				if err != nil {
+					log.Printf("Error: %s", err)
+				} else {
+					clients = deleteClient(clients, index)
+				}
+				return
+
 			} else {
 				log.Printf("No matching command found: '%s'\n", msg.Key)
 			}
