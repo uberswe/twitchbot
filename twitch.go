@@ -30,6 +30,7 @@ func twitchIRCHandler() {
 				universalBotTwitchID = bot.UserTwitchID
 			}
 			bot.TwitchIRCClient = connectBotToTwitch(bot)
+			bot.Connected = true
 			botConnections[bot.UserTwitchID] = bot
 		}
 	}
@@ -257,6 +258,8 @@ func reconnectBotHandler(bot Bot) {
 
 	bot.TwitchIRCClient = connectBotToTwitch(bot)
 
+	bot.Connected = true
+
 	botConnections[bot.UserTwitchID] = bot
 
 }
@@ -367,6 +370,7 @@ func handleMainBotConnects() {
 				if connect.Connect {
 					log.Printf("Universal bot %s is joining %s\n", universalBotTwitchID, connect.Name)
 					botConnections[universalBotTwitchID].TwitchIRCClient.Join(connect.Name)
+					universalConnectedChannels = append(universalConnectedChannels, connect.Name)
 				} else {
 					log.Printf("Universal bot %s is leaving %s\n", universalBotTwitchID, connect.Name)
 					botConnections[universalBotTwitchID].TwitchIRCClient.Depart(connect.Name)

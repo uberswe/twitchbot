@@ -353,6 +353,8 @@ func botCallback(w http.ResponseWriter, r *http.Request) {
 
 					bot.TwitchIRCClient = connectBotToTwitch(bot)
 
+					bot.Connected = true
+
 					botConnections[bot.UserTwitchID] = bot
 
 					b, err := json.Marshal(bot)
