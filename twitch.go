@@ -300,7 +300,7 @@ func connectBotToTwitch(bot Bot) *twitch.Client {
 
 		for _, note := range n {
 			if note.Start == 0 {
-				go handleCommand(bot, message.Message, client)
+				go handleCommand(bot, message, client)
 			}
 		}
 
@@ -437,8 +437,8 @@ func connectToTwitch(user User) *twitch.Client {
 	})
 
 	client.OnPrivateMessage(func(message twitch.PrivateMessage) {
-
 		log.Println(fmt.Sprintf("New message detected: [%s] %s", message.Channel, message.Message))
+		log.Printf("%v\n", message)
 	})
 
 	client.Join(user.Channel.Name)
@@ -457,7 +457,7 @@ func connectToTwitch(user User) *twitch.Client {
 	return client
 }
 
-func handleCommand(bot Bot, command string, client *twitch.Client) {
+func handleCommand(bot Bot, message twitch.PrivateMessage, client *twitch.Client) {
 	data, err := db.Get([]byte(fmt.Sprintf("user:%s", bot.UserTwitchID)), nil)
 
 	if err != nil {
@@ -473,13 +473,13 @@ func handleCommand(bot Bot, command string, client *twitch.Client) {
 		return
 	}
 
-	log.Printf("Command detected: %s\n", command)
+	log.Printf("Command detected: %s\n", message.Message)
 	for _, c := range user.State.Commands {
 
 		variables := anno.FieldFunc("variable", func(s []byte) (bool, []byte) {
 			return bytes.HasPrefix(s, []byte("{")) && bytes.HasSuffix(s, []byte("}")), s
 		})
-		pieces := strings.Fields(command)
+		pieces := strings.Fields(message.Message)
 		inputPieces := strings.Fields(c.Input)
 
 		if len(pieces) > 0 && pieces[0] == inputPieces[0] && len(pieces) == len(inputPieces) {
@@ -523,8 +523,8 @@ func handleCommand(bot Bot, command string, client *twitch.Client) {
 
 			}
 
-			client.Say(user.Channel.Name, output)
-			log.Printf("Bot responded to %s in channel %s: %s\n", command, user.Channel.Name, output)
+			client.Say(message.Channel, output)
+			log.Printf("Bot responded to %s in channel %s: %s\n", message.Message, message.Channel, output)
 		}
 	}
 }
