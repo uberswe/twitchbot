@@ -239,6 +239,13 @@ func callback(w http.ResponseWriter, r *http.Request) {
 				log.Println(err)
 				return
 			}
+
+			// Connect universal bot for new user
+			connect := ConnectChannel{
+				Name:    user.Channel.Name,
+				Connect: true,
+			}
+			universalBot <- connect
 		}
 
 		c, err := json.Marshal(cookieModel)

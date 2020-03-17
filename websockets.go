@@ -219,14 +219,41 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 				}
 				return
 			}
-			// TODO check if the bot is connected
-			if val, ok := botConnections[user.TwitchID]; ok {
-				if val.Connected {
+		} else {
+			log.Println("invalid channel name")
+		}
+
+		// check if the bot is connected
+		if val, ok := botConnections[user.TwitchID]; ok {
+			if val.Connected {
+				initmsg := WebsocketMessage{
+					Key:      "channel",
+					Channel:  user.Channel.Name,
+					TwitchID: user.TwitchID,
+					BotName:  val.Name,
+				}
+				err := ws.WriteJSON(initmsg)
+				if err != nil {
+					log.Printf("Error: %s", err)
+					index, err := getClientIndex(clients, user.TwitchID)
+					if err != nil {
+						log.Printf("Error: %s", err)
+					} else {
+						clients = deleteClient(clients, index)
+						return
+					}
+					return
+				}
+			}
+		} else {
+			// If the user does not have it's own bot then it's part of the universal bot
+			for _, connectedChannel := range universalConnectedChannels {
+				if connectedChannel == user.Channel.Name {
 					initmsg := WebsocketMessage{
 						Key:      "channel",
 						Channel:  user.Channel.Name,
 						TwitchID: user.TwitchID,
-						BotName:  val.Name,
+						BotName:  botConnections[universalBotTwitchID].Name,
 					}
 					err := ws.WriteJSON(initmsg)
 					if err != nil {
@@ -241,33 +268,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 				}
-			} else {
-				// If the user does not have it's own bot then it's part of the universal bot
-				for _, connectedChannel := range universalConnectedChannels {
-					if connectedChannel == user.Channel.Name {
-						initmsg := WebsocketMessage{
-							Key:      "channel",
-							Channel:  user.Channel.Name,
-							TwitchID: user.TwitchID,
-							BotName:  botConnections[universalBotTwitchID].Name,
-						}
-						err := ws.WriteJSON(initmsg)
-						if err != nil {
-							log.Printf("Error: %s", err)
-							index, err := getClientIndex(clients, user.TwitchID)
-							if err != nil {
-								log.Printf("Error: %s", err)
-							} else {
-								clients = deleteClient(clients, index)
-								return
-							}
-							return
-						}
-					}
-				}
 			}
-		} else {
-			log.Println("invalid channel name")
 		}
 	}
 
