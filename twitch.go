@@ -24,6 +24,7 @@ func twitchIRCHandler() {
 			continue
 		}
 
+		// If the twitch id does not exist in the bot connections map we add it
 		if _, ok := botConnections[bot.UserTwitchID]; !ok {
 			if bot.Name == defaultBot {
 				log.Printf("Universal bot id found: %s\n", bot.UserTwitchID)
@@ -49,6 +50,7 @@ func twitchIRCHandler() {
 			continue
 		}
 
+		// If there is no client connection we make a new one
 		if _, ok := clientConnections[user.TwitchID]; !ok {
 			user.TwitchIRCClient = connectToTwitch(user)
 			clientConnections[user.TwitchID] = user
@@ -65,6 +67,16 @@ func twitchIRCHandler() {
 			if err != nil {
 				log.Println(err)
 				return
+			}
+
+			// Connect universal bot to channel if user doesn't have their own bot
+			if _, ok := botConnections[user.TwitchID]; !ok {
+				// Connect universal bot for new user
+				connect := ConnectChannel{
+					Name:    user.Channel.Name,
+					Connect: true,
+				}
+				universalBot <- connect
 			}
 		}
 	}
