@@ -55,14 +55,9 @@ func twitchIRCHandler() {
 			user.TwitchIRCClient = connectToTwitch(user)
 			clientConnections[user.TwitchID] = user
 			user.Connected = true
-			b, err := json.Marshal(user)
-			if err != nil {
-				log.Printf("Error: %s", err)
-				return
-			}
 
 			// We store the user object with the twitchID for reference
-			err = db.Put([]byte(fmt.Sprintf("user:%s", user.TwitchID)), b, nil)
+			err = user.store()
 
 			if err != nil {
 				log.Println(err)
@@ -128,14 +123,8 @@ func refreshHandler() {
 
 				user.TokenExpiry = tokenExpiry
 
-				b, err := json.Marshal(user)
-				if err != nil {
-					log.Printf("Error: %s", err)
-					return
-				}
-
 				// We store the user object with the twitchID for reference
-				err = db.Put([]byte(fmt.Sprintf("user:%s", user.TwitchID)), b, nil)
+				err = user.store()
 
 				if err != nil {
 					log.Println(err)
@@ -188,14 +177,8 @@ func refreshHandler() {
 
 				bot.TokenExpiry = tokenExpiry
 
-				b, err := json.Marshal(bot)
-				if err != nil {
-					log.Printf("Error: %s", err)
-					return
-				}
-
 				// We store the user object with the twitchID for reference
-				err = db.Put([]byte(fmt.Sprintf("bot:%s", bot.UserTwitchID)), b, nil)
+				err = bot.store()
 
 				if err != nil {
 					log.Println(err)
@@ -240,12 +223,10 @@ func reconnectHandler(user User) {
 
 	clientConnections[user.TwitchID] = user
 
-	b, err := json.Marshal(user)
+	err = user.store()
 	if err != nil {
 		log.Printf("Error: %s", err)
-		return
 	}
-	db.Put([]byte(fmt.Sprintf("user:%s", user.TwitchID)), b, nil)
 
 	log.Println("Connect started for reconnect")
 }

@@ -18,6 +18,10 @@ import (
 	"time"
 )
 
+type HashRequest struct {
+	Hash string
+}
+
 func routes() {
 
 	fs := http.FileServer(http.Dir("assets"))
@@ -217,23 +221,11 @@ func callback(w http.ResponseWriter, r *http.Request) {
 				TwitchID: twitchID,
 			}
 
-			t, err := json.Marshal(btoken)
-			if err != nil {
-				log.Printf("Error: %s", err)
-				return
-			}
-
 			// We store the bot token object as a reference
-			err = db.Put([]byte(fmt.Sprintf("bottoken:%s", botToken)), t, nil)
-
-			b, err := json.Marshal(user)
-			if err != nil {
-				log.Printf("Error: %s", err)
-				return
-			}
+			err = btoken.store()
 
 			// We store the user object with the twitchID for reference
-			err = db.Put([]byte(fmt.Sprintf("user:%s", twitchID)), b, nil)
+			err = user.store()
 
 			if err != nil {
 				log.Println(err)
@@ -248,14 +240,8 @@ func callback(w http.ResponseWriter, r *http.Request) {
 			universalBot <- connect
 		}
 
-		c, err := json.Marshal(cookieModel)
-		if err != nil {
-			log.Printf("Error: %s", err)
-			return
-		}
-
 		// We then store the cookie which has a reference to the twitchID
-		err = db.Put([]byte(fmt.Sprintf("cookie:%s", key)), c, nil)
+		err = cookieModel.store(key)
 
 		if err != nil {
 			log.Println(err)
@@ -365,14 +351,8 @@ func botCallback(w http.ResponseWriter, r *http.Request) {
 
 					botConnections[bot.UserTwitchID] = bot
 
-					b, err := json.Marshal(bot)
-					if err != nil {
-						log.Printf("Error: %s", err)
-						return
-					}
-
 					// We store the user object with the twitchID for reference
-					err = db.Put([]byte(fmt.Sprintf("bot:%s", user.TwitchID)), b, nil)
+					err = bot.store()
 
 					if err != nil {
 						log.Println(err)

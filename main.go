@@ -34,24 +34,6 @@ var (
 	universalConnectedChannels []string
 )
 
-// Define our message object
-
-type Template struct {
-	ModifiedHash string
-	BotUrl       string
-	BotName      string
-	BotConnected bool
-}
-
-type ConnectChannel struct {
-	Name    string
-	Connect bool
-}
-
-type HashRequest struct {
-	Hash string
-}
-
 func Init() {
 	rand.Seed(time.Now().UnixNano())
 }
@@ -93,8 +75,7 @@ func Run() {
 	// starts it's own thread for websocket connections
 	initWebsockets()
 
-	// Routes
-
+	// Initialize routes
 	routes()
 
 	// Refresh tokens every 10 min
