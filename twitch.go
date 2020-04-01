@@ -401,15 +401,35 @@ func connectToTwitch(user User) *twitch.Client {
 
 		log.Println(fmt.Sprintf("New notice: %s %s", string(jsonString), message.MsgID))
 
-		if message.MsgID == "raid" {
-			// TODO set lastraid
-			// TODO set lasthostraid
-			// 2019/08/25 12:20:15 New notice: {"msg-param-displayName":"El_Funko","msg-param-login":"el_funko",
-			// "msg-param-profileImageURL":"https://static-cdn.jtvnw.net/jtv_user_pictures/823e29e0-2bef-42a3-b0df-3d8755dbde53-profile_image-70x70.png",
-			// "msg-param-viewerCount":"38"} raid
-		} else if message.MsgID == "host" {
-			// TODO set last host
-			// TODO set lasthostraid
+		// Check if the user is set for the message
+		if msgUser, ok := message.MsgParams["msg-param-login"]; ok {
+			// Check if message is a raid
+			if message.MsgID == "raid" {
+				if _, ok := clientConnections[user.TwitchID]; ok {
+					for i, v := range clientConnections[user.TwitchID].State.Variables {
+						if v.Name == "lastraid" || v.Name == "lasthostraid" {
+							if len(clientConnections[user.TwitchID].State.Variables) > i {
+								clientConnections[user.TwitchID].State.Variables[i].Value = msgUser
+							}
+						}
+					}
+				}
+				// 2019/08/25 12:20:15 New notice: {"msg-param-displayName":"El_Funko","msg-param-login":"el_funko",
+				// "msg-param-profileImageURL":"https://static-cdn.jtvnw.net/jtv_user_pictures/823e29e0-2bef-42a3-b0df-3d8755dbde53-profile_image-70x70.png",
+				// "msg-param-viewerCount":"38"} raid
+
+				// check if message is a host
+			} else if message.MsgID == "host" {
+				if _, ok := clientConnections[user.TwitchID]; ok {
+					for i, v := range clientConnections[user.TwitchID].State.Variables {
+						if v.Name == "lasthost" || v.Name == "lasthostraid" {
+							if len(clientConnections[user.TwitchID].State.Variables) > i {
+								clientConnections[user.TwitchID].State.Variables[i].Value = msgUser
+							}
+						}
+					}
+				}
+			}
 		}
 
 		// TODO These are examples of other messages that we could make variables for
