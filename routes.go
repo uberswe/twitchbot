@@ -18,10 +18,6 @@ import (
 	"time"
 )
 
-type HashRequest struct {
-	Hash string
-}
-
 func routes() {
 
 	fs := http.FileServer(http.Dir("assets"))
@@ -258,10 +254,10 @@ func callback(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin", 302)
 
 		return
-	} else {
-		http.Error(w, "Unexpected response from Twitch, please try again!", 500)
-		return
 	}
+	http.Error(w, "Unexpected response from Twitch, please try again!", 500)
+	return
+
 }
 
 func botCallback(w http.ResponseWriter, r *http.Request) {
@@ -379,10 +375,10 @@ func botCallback(w http.ResponseWriter, r *http.Request) {
 		tmpl := template.Must(template.ParseFiles(filename))
 		err = tmpl.Execute(w, t)
 		return
-	} else {
-		http.Error(w, "Unexpected response from Twitch, please try again!", 500)
-		return
 	}
+	http.Error(w, "Unexpected response from Twitch, please try again!", 500)
+	return
+
 }
 
 func admin(w http.ResponseWriter, r *http.Request) {
@@ -420,7 +416,7 @@ func admin(w http.ResponseWriter, r *http.Request) {
 
 	t := Template{
 		ModifiedHash: getModHash(filename),
-		BotUrl:       botURL,
+		BotURL:       botURL,
 		BotName:      getBotName(userObj),
 		BotConnected: isBotConnected(userObj),
 	}

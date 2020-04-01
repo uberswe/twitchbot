@@ -34,10 +34,12 @@ var (
 	universalConnectedChannels []string
 )
 
+// Init is called before run and currently makes a seed for random number generators
 func Init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+// Run runs the application, it loads the config, starts everything and keeps it running
 func Run() {
 	// Load environmental variables
 	err := godotenv.Load()

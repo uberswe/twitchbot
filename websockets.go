@@ -33,7 +33,7 @@ func initWebsockets() {
 	upgrader = websocket.Upgrader{}
 
 	r.HandleFunc("/ws", handleConnections)
-	// Start listening for incoming chat messages
+
 	go handleMessages()
 }
 
@@ -79,25 +79,17 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Println(err)
 			return
-		} else {
-			authenticated = true
-			log.Println("Authenticated")
-			statemsg := WebsocketMessage{
-				Key:      "state",
-				Channel:  user.Channel.Name,
-				State:    user.State,
-				TwitchID: user.TwitchID,
-			}
-
-			clients = append(clients, Wconn{
-				Connection: ws,
-				TwitchID:   user.TwitchID,
-			})
-
-			err := ws.WriteJSON(statemsg)
-
-			handleWsError(err, user.TwitchID)
 		}
+		authenticated = true
+		log.Println("Authenticated")
+
+		clients = append(clients, Wconn{
+			Connection: ws,
+			TwitchID:   user.TwitchID,
+		})
+
+		sendStateMessage(ws, user)
+
 	}
 
 	if authenticated {
@@ -115,14 +107,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			log.Println("Connect started")
 		} else if user.Connected {
 			log.Println("user already connected")
-			initmsg := WebsocketMessage{
-				Key:      "channel",
-				Channel:  user.Channel.Name,
-				TwitchID: user.TwitchID,
-			}
-
-			err := ws.WriteJSON(initmsg)
-			handleWsError(err, user.TwitchID)
+			sendChannelMessage(ws, user)
 		} else {
 			log.Println("invalid channel name")
 		}
@@ -130,27 +115,13 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		// check if the bot is connected
 		if val, ok := botConnections[user.TwitchID]; ok {
 			if val.Connected {
-				initmsg := WebsocketMessage{
-					Key:      "channel",
-					Channel:  user.Channel.Name,
-					TwitchID: user.TwitchID,
-					BotName:  val.Name,
-				}
-				err := ws.WriteJSON(initmsg)
-				handleWsError(err, user.TwitchID)
+				sendChannelMessageForBot(ws, user, val.Name)
 			}
 		} else {
 			// If the user does not have it's own bot then it's part of the universal bot
 			for _, connectedChannel := range universalConnectedChannels {
 				if connectedChannel == user.Channel.Name {
-					initmsg := WebsocketMessage{
-						Key:      "channel",
-						Channel:  user.Channel.Name,
-						TwitchID: user.TwitchID,
-						BotName:  botConnections[universalBotTwitchID].Name,
-					}
-					err := ws.WriteJSON(initmsg)
-					handleWsError(err, user.TwitchID)
+					sendChannelMessageForBot(ws, user, botConnections[universalBotTwitchID].Name)
 				}
 			}
 		}
@@ -340,4 +311,35 @@ func sendAlertMessage(ws *websocket.Conn, text string, alertType string, twitchI
 	err := ws.WriteJSON(alertmsg)
 
 	handleWsError(err, twitchID)
+}
+
+// sendChannelMessage is used to communicate when a user has connected to a Twitch channel
+func sendChannelMessage(ws *websocket.Conn, user User) {
+	channelmsg := WebsocketMessage{
+		Key:      "channel",
+		Channel:  user.Channel.Name,
+		TwitchID: user.TwitchID,
+	}
+
+	err := ws.WriteJSON(channelmsg)
+
+	handleWsError(err, user.TwitchID)
+}
+
+// sendChannelMessageForBot is used to communicate when a bot has connected to a users Twitch channel
+func sendChannelMessageForBot(ws *websocket.Conn, user User, botName string) {
+	channelmsg := WebsocketMessage{
+		Key:      "channel",
+		Channel:  user.Channel.Name,
+		TwitchID: user.TwitchID,
+		BotName:  botName,
+	}
+
+	err := ws.WriteJSON(channelmsg)
+
+	handleWsError(err, user.TwitchID)
+}
+
+func broadcastMessage(msg WebsocketMessage) {
+	broadcast <- msg
 }
