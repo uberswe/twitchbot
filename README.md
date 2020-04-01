@@ -20,3 +20,5 @@ By connecting you will currently always be in your channels chat, this is tempor
 Check the Issues page to see what kind of known bugs exist. If you try this and find a bug consider opening an issue.
 
 Contributions are welcome!
+
+After I started this I noticed that [StreamLabs Chatbot](https://streamlabs.com/chatbot) is a program you can run if you want to have a chatbot with a custom name. This project is similar except you could more easily run this project on a server 24/7 and offer the custom bot name to other people.
