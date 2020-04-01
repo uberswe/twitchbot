@@ -13,6 +13,9 @@ if (location.protocol !== 'https:') {
 }
 ws.addEventListener ('message', function (e) {
     let msg = JSON.parse (e.data);
+    console.log ("START DEBUG")
+    console.log (msg)
+    console.log ("END DEBUG")
     if (msg.key === "message" | msg.key === "notice") {
         messageReceive (msg.private_message);
     } else if (msg.key === "channel") {

@@ -38,13 +38,21 @@
                         <p>You have connected your own bot <b>{{.BotName}}</b></p>
                         <button type="submit" class="btn btn-danger" id="disconnectbot">Disconnect</button>
                     {{ else }}
+                        {{ if .BotName }}
                         <label for="botlink">Connect a custom Twitch account to use as your bot</label>
-                        <p>Currently your bot is <b>{{.BotName}}</b> but you can connect your own account to be used as
+                        <p>Currently your bot is <b>{{ .BotName }}</b> but you can connect your own account to be used as
                             a bot
                             using the link below. I recommend opening a separate browser or private window where you can
                             login and connect with the bot Twitch account.</p>
                         <input type="text" class="form-control" id="botlink" name="botlink" value="{{.BotURL}}"
                                disabled>
+
+                        {{ else }}
+                            <p>No bot is connected, please connect a bot account using the link below to get started. I recommend opening a separate browser or private window where you can
+                                login and connect with the bot Twitch account.</p>
+                            <input type="text" class="form-control" id="botlink" name="botlink" value="{{.BotURL}}"
+                                   disabled>
+                        {{ end }}
                     {{ end }}
                 </div>
             </form>

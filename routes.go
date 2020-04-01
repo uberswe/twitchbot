@@ -347,6 +347,13 @@ func botCallback(w http.ResponseWriter, r *http.Request) {
 
 					botConnections[bot.UserTwitchID] = bot
 
+					connectMsg := WebsocketMessage{
+						Key:      "botconnected",
+						TwitchID: user.TwitchID,
+					}
+
+					broadcastMessage(connectMsg)
+
 					// We store the user object with the twitchID for reference
 					err = bot.store()
 
