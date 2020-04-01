@@ -291,7 +291,8 @@ func connectBotToTwitch(bot Bot) *twitch.Client {
 		n, err := anno.FindString(commands, message.Message)
 
 		if err != nil {
-			panic(err)
+			log.Println(err)
+			return
 		}
 
 		for _, note := range n {
@@ -300,10 +301,17 @@ func connectBotToTwitch(bot Bot) *twitch.Client {
 			}
 		}
 
+		twitchID, err := getTwitchIDFromChannelName(message.Channel)
+
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
 		initmsg := WebsocketMessage{
 			Key:            "notice",
 			PrivateMessage: message,
-			TwitchID:       bot.UserTwitchID,
+			TwitchID:       twitchID,
 		}
 
 		broadcastMessage(initmsg)

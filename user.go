@@ -3,6 +3,7 @@ package botsbyuberswe
 import (
 	"github.com/gempir/go-twitch-irc/v2"
 	"github.com/nicklaw5/helix"
+	"log"
 	"time"
 )
 
@@ -28,5 +29,17 @@ type User struct {
 
 // store stores a User struct
 func (u *User) store() error {
+	err := u.storeChannelIndex()
+
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+
 	return storeStruct(u, "user", u.TwitchID)
+}
+
+// store stores a User struct
+func (u *User) storeChannelIndex() error {
+	return storeStruct(u.TwitchID, "userChannel", u.Channel.Name)
 }

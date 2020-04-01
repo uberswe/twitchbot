@@ -45,3 +45,19 @@ func getUserFromTwitchID(twitchID string) (User, error) {
 	}
 	return user, nil
 }
+
+// getTwitchIDFromChannelName gets the twitch id of a user from the channel name
+func getTwitchIDFromChannelName(channelName string) (string, error) {
+	var twitchID string
+	data, err := db.Get([]byte(fmt.Sprintf("userChannel:%s", channelName)), nil)
+	if err != nil {
+		log.Println(err)
+		return twitchID, err
+	}
+	err = json.Unmarshal(data, &twitchID)
+	if err != nil {
+		log.Println(err)
+		return twitchID, err
+	}
+	return twitchID, nil
+}
