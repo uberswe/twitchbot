@@ -17,6 +17,7 @@ type Bot struct {
 	AccessToken           string         `json:"access_token,omitempty"`
 	RefreshToken          string         `json:"refresh_token,omitempty"`
 	Connected             bool           `json:"connected,omitempty"`
+	ConnectAttempts       int            `json:"connect_attempts,omitempty"`
 	UserTwitchID          string         `json:"user_twitch_id,omitempty"`
 	TokenExpiry           time.Time      `json:"token_expiry,omitempty"`
 }

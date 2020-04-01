@@ -19,6 +19,7 @@ type User struct {
 	Channel               Channel        `json:"channel,omitempty"`
 	State                 State          `json:"state,omitempty"`
 	Connected             bool           `json:"connected,omitempty"`
+	ConnectAttempts       int            `json:"connect_attempts,omitempty"`
 	BotToken              string         `json:"bot_token,omitempty"`
 	TwitchIRCClient       *twitch.Client `json:"-"`
 	TwitchOAuthClient     *helix.Client  `json:"-"`

@@ -220,6 +220,7 @@ func reconnectHandler(user User) {
 	user.TwitchIRCClient = connectToTwitch(user)
 
 	user.Connected = true
+	user.ConnectAttempts = 0
 	user.TwitchConnectFailures++
 
 	clientConnections[user.TwitchID] = user
@@ -252,6 +253,7 @@ func reconnectBotHandler(bot Bot) {
 
 	bot.TwitchIRCClient = connectBotToTwitch(bot)
 
+	bot.ConnectAttempts = 0
 	bot.Connected = true
 
 	botConnections[bot.UserTwitchID] = bot
@@ -345,7 +347,13 @@ func connectBotToTwitch(bot Bot) *twitch.Client {
 		err := client.Connect()
 		if err != nil {
 			log.Println(err)
-			time.Sleep(10 * time.Second)
+			if bot.ConnectAttempts > 20 {
+				delete(botConnections, bot.UserTwitchID)
+				return
+			}
+			bot.ConnectAttempts++
+			bot.Connected = false
+			time.Sleep(time.Duration(bot.ConnectAttempts*10) * time.Second)
 			reconnectBotHandler(bot)
 		}
 	}()
@@ -466,8 +474,13 @@ func connectToTwitch(user User) *twitch.Client {
 		if err != nil {
 			log.Printf("Error in twitch irc connection for %s\n", user.TwitchID)
 			log.Println(err)
-			time.Sleep(10 * time.Second)
+			if user.ConnectAttempts > 20 {
+				delete(clientConnections, user.TwitchID)
+				return
+			}
+			user.ConnectAttempts++
 			user.Connected = false
+			time.Sleep(time.Duration(10*user.ConnectAttempts) * time.Second)
 			reconnectHandler(user)
 		}
 	}()
