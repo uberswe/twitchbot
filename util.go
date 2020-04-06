@@ -17,15 +17,14 @@ func RandString(n int) string {
 }
 
 // TODO refactor these delete functions at some point, they seem overly complicated
-func deleteCommand(arr []Command, index int) []Command {
-	if index < 0 || index >= len(arr) {
-		return arr
+func deleteCommand(a []Command, i int) []Command {
+	if i < 0 || i >= len(a) {
+		return a
 	}
-	for i := index; i < len(arr)-1; i++ {
-		arr[i] = arr[i+1]
-
+	for i := i; i < len(a)-1; i++ {
+		a[i] = a[i+1]
 	}
-	return arr[:len(arr)-1]
+	return a[:len(a)-1]
 }
 
 func deleteClient(arr []Wconn, index int) []Wconn {

@@ -129,6 +129,11 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 
 	for {
 		var msg WebsocketMessage
+		user, err = getUserFromTwitchID(user.TwitchID)
+		if err != nil {
+			log.Println(err)
+			return
+		}
 		// Read in a new message as JSON and map it to a Message object
 		err := ws.ReadJSON(&msg)
 		if err != nil {

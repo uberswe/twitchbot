@@ -13,9 +13,6 @@ if (location.protocol !== 'https:') {
 }
 ws.addEventListener ('message', function (e) {
     let msg = JSON.parse (e.data);
-    console.log ("START DEBUG")
-    console.log (msg)
-    console.log ("END DEBUG")
     if (msg.key === "message" | msg.key === "notice") {
         messageReceive (msg.private_message);
     } else if (msg.key === "channel") {
@@ -25,10 +22,6 @@ ws.addEventListener ('message', function (e) {
             channelReceive (msg.channel);
         }
     } else if (msg.key === "endchannel") {
-        channelEndReceive (msg.value);
-    } else if (msg.key === "addcommand") {
-        channelEndReceive (msg.value);
-    } else if (msg.key === "removecommand") {
         channelEndReceive (msg.value);
     } else if (msg.key === "state") {
         userStateHandler (msg.state);
@@ -104,8 +97,9 @@ function logout(e) {
 function removeCommandClicked(e) {
     e.preventDefault ();
     let cmd = e.currentTarget.parentNode.querySelector ('p').innerText;
-    console.log ({key: "removecommand", text: cmd});
-    ws.send (JSON.stringify ({key: "removecommand", text: cmd}));
+    let msg = {key: "removecommand", text: cmd};
+    console.log (msg);
+    ws.send (JSON.stringify (msg));
 }
 
 function appendMessage(m, c) {
@@ -159,6 +153,7 @@ function appendCommand(command) {
     p.appendChild (b);
     var c = document.createElement ('div');
     c.className = "cmd";
+    commands.appendChild (c);
     c.appendChild (p);
     var p2 = document.createElement ('p');
     p2.innerText = command["output"];
@@ -168,9 +163,9 @@ function appendCommand(command) {
     button.className = "btn btn-danger";
     button.id = "removecommand";
     button.innerText = "Remove";
-    button.addEventListener ('click', removeCommandClicked);
     c.appendChild (button);
-    commands.appendChild (c);
+    console.log("event listener registered");
+    button.addEventListener ('click', removeCommandClicked);
     commandField.value = "";
     commandDescriptionField.value = "";
 }
