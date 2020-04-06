@@ -65,7 +65,7 @@ func handleCommand(bot Bot, message twitch.PrivateMessage, client *twitch.Client
 		inputPieces := strings.Fields(c.Input)
 
 		if len(pieces) > 0 && strings.ToLower(pieces[0]) == strings.ToLower(inputPieces[0]) && len(pieces) == len(inputPieces) {
-
+			match := true
 			// Make sure the command matches
 			for i, piece := range pieces {
 				pieceCheck, err := anno.FindManyString(inputPieces[i], variables)
@@ -77,9 +77,14 @@ func handleCommand(bot Bot, message twitch.PrivateMessage, client *twitch.Client
 				if len(pieceCheck) == 0 {
 					if strings.ToLower(piece) != strings.ToLower(inputPieces[i]) {
 						// The command does not match so we return and exit
-						return
+						match = false
 					}
 				}
+			}
+
+			// commands do not match, continue to the next command
+			if !match {
+				continue
 			}
 
 			log.Printf("Command detected: %s\n", message.Message)
