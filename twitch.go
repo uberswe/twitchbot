@@ -1,11 +1,9 @@
 package botsbyuberswe
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	twitch "github.com/gempir/go-twitch-irc/v2"
-	"github.com/matryer/anno"
 	"github.com/nicklaw5/helix"
 	"github.com/syndtr/goleveldb/leveldb/util"
 	"log"
@@ -284,22 +282,7 @@ func connectBotToTwitch(bot Bot) *twitch.Client {
 
 	client.OnPrivateMessage(func(message twitch.PrivateMessage) {
 
-		commands := anno.FieldFunc("command", func(s []byte) (bool, []byte) {
-			return bytes.HasPrefix(s, []byte("!")), s
-		})
-
-		n, err := anno.FindString(commands, message.Message)
-
-		if err != nil {
-			log.Println(err)
-			return
-		}
-
-		for _, note := range n {
-			if note.Start == 0 {
-				go handleCommand(bot, message, client)
-			}
-		}
+		go handleCommand(bot, message, client)
 
 		twitchID, err := getTwitchIDFromChannelName(message.Channel)
 

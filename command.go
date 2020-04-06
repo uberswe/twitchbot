@@ -56,7 +56,6 @@ func handleCommand(bot Bot, message twitch.PrivateMessage, client *twitch.Client
 		return
 	}
 
-	log.Printf("Command detected: %s\n", message.Message)
 	for _, c := range user.State.Commands {
 
 		variables := anno.FieldFunc("variable", func(s []byte) (bool, []byte) {
@@ -65,7 +64,26 @@ func handleCommand(bot Bot, message twitch.PrivateMessage, client *twitch.Client
 		pieces := strings.Fields(message.Message)
 		inputPieces := strings.Fields(c.Input)
 
-		if len(pieces) > 0 && pieces[0] == inputPieces[0] && len(pieces) == len(inputPieces) {
+		if len(pieces) > 0 && strings.ToLower(pieces[0]) == strings.ToLower(inputPieces[0]) && len(pieces) == len(inputPieces) {
+
+			// Make sure the command matches
+			for i, piece := range pieces {
+				pieceCheck, err := anno.FindManyString(inputPieces[i], variables)
+				if err != nil {
+					log.Println(err)
+					return
+				}
+				// We don't compare variables
+				if len(pieceCheck) == 0 {
+					if strings.ToLower(piece) != strings.ToLower(inputPieces[i]) {
+						// The command does not match so we return and exit
+						return
+					}
+				}
+			}
+
+			log.Printf("Command detected: %s\n", message.Message)
+
 			inputVariables, err := anno.FindManyString(c.Input, variables)
 			if err != nil {
 				log.Println(err)
@@ -85,11 +103,11 @@ func handleCommand(bot Bot, message twitch.PrivateMessage, client *twitch.Client
 				log.Printf("Length of pieces is %d greater than index %d\n", len(pieces), index+1)
 				if len(pieces) > (index + 1) {
 					if string(inputNote.Val) == "{user}" {
-						log.Printf("Replacing {user} \"%s\" in \"%s\" with \"%s\"\n", string(inputNote.Val), output, strings.Trim(pieces[index+1], "@"))
-						output = strings.Replace(output, string(inputNote.Val), strings.Trim(pieces[index+1], "@"), -1)
+						log.Printf("Replacing {user} \"%s\" in \"%s\" with \"%s\"\n", string(inputNote.Val), output, strings.Trim(pieces[findIndexOfMatchingString(strings.Fields(c.Input), string(inputNote.Val))], "@"))
+						output = strings.Replace(output, string(inputNote.Val), strings.Trim(pieces[findIndexOfMatchingString(strings.Fields(c.Input), string(inputNote.Val))], "@"), -1)
 					} else {
-						log.Printf("Replacing \"%s\" in \"%s\" with \"%s\"\n", string(inputNote.Val), output, pieces[index+1])
-						output = strings.Replace(output, string(inputNote.Val), pieces[index+1], -1)
+						log.Printf("Replacing \"%s\" in \"%s\" with \"%s\"\n", string(inputNote.Val), output, pieces[findIndexOfMatchingString(strings.Fields(c.Input), string(inputNote.Val))])
+						output = strings.Replace(output, string(inputNote.Val), pieces[findIndexOfMatchingString(strings.Fields(c.Input), string(inputNote.Val))], -1)
 					}
 				}
 			}
@@ -110,4 +128,13 @@ func handleCommand(bot Bot, message twitch.PrivateMessage, client *twitch.Client
 			log.Printf("Bot responded to %s in channel %s: %s\n", message.Message, message.Channel, output)
 		}
 	}
+}
+
+func findIndexOfMatchingString(strs []string, s string) int {
+	for i, st := range strs {
+		if strings.ToLower(st) == strings.ToLower(s) {
+			return i
+		}
+	}
+	return 0
 }
